@@ -18,7 +18,7 @@
         p {
             text-align: center;
         }
-        #preview, #download-section {
+        #preview {
             margin-top: 20px;
             text-align: center;
         }
@@ -41,8 +41,9 @@
             background-color: #f9f9f9;
         }
         button {
-            margin-top: 20px;
+            margin: 10px;
             padding: 10px 20px;
+            font-size: 16px;
             background-color: #007bff;
             color: white;
             border: none;
@@ -65,56 +66,63 @@
     </div>
 
     <div id="preview"></div>
-    <div id="download-section" style="display: none;">
-        <button id="downloadReport">Descargar Resultado de Reconciliación</button>
-    </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const soaFileInput = document.getElementById("soaFile");
             const reportFileInput = document.getElementById("reportFile");
             const previewDiv = document.getElementById("preview");
-            const downloadSection = document.getElementById("download-section");
-            const downloadButton = document.getElementById("downloadReport");
 
-            let files = {
-                soa: null,
-                report: null,
-                reconciled: null
-            };
+            soaFileInput.addEventListener("change", handleSOAFile);
+            reportFileInput.addEventListener("change", handleReportFile);
 
-            soaFileInput.addEventListener("change", handleFile);
-            reportFileInput.addEventListener("change", handleFile);
+            let soaRows = null;
+            let reportRows = null;
 
-            function handleFile(event) {
+            function handleSOAFile(event) {
                 const file = event.target.files[0];
                 if (!file) {
-                    alert("Por favor selecciona un archivo válido.");
+                    alert("Por favor selecciona un archivo válido para el SOA.");
                     return;
                 }
 
                 const reader = new FileReader();
                 reader.onload = function (e) {
                     const content = e.target.result;
-                    const rows = parseAndCleanCSV(content, event.target.id === "soaFile");
+                    const rows = parseCSV(content);
+                    soaRows = cleanSOA(rows);
 
-                    if (event.target.id === "soaFile") {
-                        files.soa = rows;
-                        displayPreview("SOA", rows);
+                    if (soaRows) {
+                        displayPreview("SOA Limpio", soaRows);
+                        enableSOADownload(soaRows);
                     } else {
-                        files.report = rows;
-                        displayPreview("Reporte", rows);
-                    }
-
-                    if (files.soa && files.report) {
-                        files.reconciled = reconcile(files.soa, files.report);
-                        downloadSection.style.display = "block";
+                        alert("No se pudieron identificar columnas relevantes en el SOA.");
                     }
                 };
                 reader.readAsText(file);
             }
 
-            function parseAndCleanCSV(content, isSOA) {
+            function handleReportFile(event) {
+                const file = event.target.files[0];
+                if (!file) {
+                    alert("Por favor selecciona un archivo válido para el Reporte.");
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const content = e.target.result;
+                    reportRows = parseCSV(content);
+                    displayPreview("Reporte", reportRows);
+
+                    if (soaRows && reportRows) {
+                        reconcile(soaRows, reportRows);
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            function parseCSV(content) {
                 const rows = [];
                 const lines = content.split("\n");
 
@@ -129,14 +137,14 @@
                         if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
                             insideQuotes = !insideQuotes;
                         } else if (char === ',' && !insideQuotes) {
-                            cells.push(cleanData(currentCell, isSOA));
+                            cells.push(currentCell.trim());
                             currentCell = '';
                         } else {
                             currentCell += char;
                         }
                     }
 
-                    cells.push(cleanData(currentCell, isSOA));
+                    cells.push(currentCell.trim());
 
                     if (cells.some(cell => cell !== "")) {
                         rows.push(cells);
@@ -146,19 +154,24 @@
                 return rows;
             }
 
-            function cleanData(value, isSOA) {
-                let cleaned = value
-                    .replace(/^\s+|\s+$/g, "") // Eliminar espacios al inicio y final
-                    .replace(/^"|"$/g, "") // Eliminar comillas iniciales y finales
-                    .replace(/\s+/g, " ") // Reemplazar espacios múltiples por uno
-                    .replace(/[^\w\s\.\,\-\/]/g, ""); // Eliminar caracteres especiales no deseados
+            function cleanSOA(rows) {
+                const relevantHeaders = ["Transaction Type", "Date", "Reference", "Balance", "Cumulative Balance"];
+                const headerRow = rows.find(row => 
+                    relevantHeaders.every(header => row.includes(header))
+                );
 
-                // Si es el SOA, aplicar reglas adicionales
-                if (isSOA) {
-                    cleaned = cleaned.replace(/(\r\n|\n|\r)/gm, ""); // Eliminar saltos de línea
+                if (!headerRow) {
+                    return null;
                 }
 
-                return cleaned;
+                const headerIndices = relevantHeaders.map(header => headerRow.indexOf(header));
+
+                const cleanedRows = rows
+                    .filter(row => row.some(cell => cell.trim() !== ""))
+                    .map(row => headerIndices.map(index => row[index] || ""));
+
+                cleanedRows.unshift(relevantHeaders);
+                return cleanedRows;
             }
 
             function displayPreview(type, rows) {
@@ -180,6 +193,16 @@
                 previewDiv.innerHTML += tableHtml;
             }
 
+            function enableSOADownload(rows) {
+                const csvContent = rows.map(row => row.join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: "text/csv" });
+                const downloadLink = document.createElement("a");
+                downloadLink.href = URL.createObjectURL(blob);
+                downloadLink.download = "SOA_Limpio.csv";
+                downloadLink.textContent = "Descargar SOA Limpio";
+                previewDiv.appendChild(downloadLink);
+            }
+
             function reconcile(soa, report) {
                 const soaHeaders = soa[0];
                 const reportHeaders = report[0];
@@ -199,28 +222,8 @@
                 });
 
                 console.log("Resultado de la Reconciliación:", result);
-                return result;
+                alert("Reconciliación completada. Revisa la consola para más detalles.");
             }
-
-            downloadButton.addEventListener("click", function () {
-                if (!files.reconciled) return;
-
-                const csvContent = files.reconciled.map(row => {
-                    return [
-                        row.status,
-                        ...(row.soa || []),
-                        ...(row.report || [])
-                    ].join(",");
-                }).join("\n");
-
-                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.setAttribute("download", "Reconciliation_Result.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            });
         });
     </script>
 </body>
