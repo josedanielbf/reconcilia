@@ -40,6 +40,10 @@
         td {
             background-color: #f9f9f9;
         }
+        td.problem {
+            color: red;
+            background-color: #ffe6e6;
+        }
     </style>
 </head>
 <body>
@@ -58,6 +62,22 @@
             const previewDiv = document.getElementById("preview");
 
             fileInput.addEventListener("change", handleFile);
+
+            const config = {
+                "Memo": {
+                    multipleValues: true, // Detecta y maneja múltiples valores
+                },
+                "Amount (Foreign Currency)": {
+                    numeric: true, // Normaliza valores numéricos
+                    currency: true, // Maneja el formato de moneda
+                },
+                "Date": {
+                    date: true // Normaliza fechas
+                },
+                "Due Date/Receive By": {
+                    date: true // Normaliza fechas
+                }
+            };
 
             function handleFile(event) {
                 const file = event.target.files[0];
@@ -80,9 +100,19 @@
                 const lines = content.split("\n").map(line => line.trim());
                 const delimiter = detectDelimiter(lines[0]);
 
-                lines.forEach(line => {
-                    const columns = line.split(delimiter).map(cleanData);
-                    rows.push(columns);
+                lines.forEach((line, index) => {
+                    let columns = line.split(delimiter).map(cleanData);
+
+                    if (index === 0) {
+                        // Encabezados
+                        rows.push(columns);
+                    } else {
+                        // Datos con limpieza específica
+                        rows.push(columns.map((cell, colIndex) => {
+                            const header = rows[0][colIndex];
+                            return cleanColumn(cell, config[header]);
+                        }));
+                    }
                 });
 
                 return rows;
@@ -95,7 +125,32 @@
             }
 
             function cleanData(value) {
-                return value.replace(/^["']|["']$/g, "").trim().replace(/,/g, ""); // Limpia comillas y comas
+                return value.replace(/^["']|["']$/g, "").trim(); // Limpia comillas y espacios
+            }
+
+            function cleanColumn(value, rules = {}) {
+                if (!value) return "";
+
+                // Múltiples valores
+                if (rules.multipleValues && value.includes(",")) {
+                    const items = value.split(",").map(item => item.trim());
+                    return items.length > 1 ? `Multiple (${items.length})` : items[0];
+                }
+
+                // Valores numéricos
+                if (rules.numeric) {
+                    value = value.replace(/[^\d.-]/g, ""); // Remueve símbolos extra
+                    return parseFloat(value).toLocaleString("en-US");
+                }
+
+                // Fechas
+                if (rules.date) {
+                    const date = new Date(value);
+                    return !isNaN(date) ? date.toLocaleDateString("en-US") : "Invalid Date";
+                }
+
+                // Sin reglas específicas, retorna el valor limpio
+                return value;
             }
 
             function displayPreview(rows) {
@@ -110,10 +165,11 @@
                 });
                 tableHtml += "</tr></thead><tbody>";
 
-                rows.slice(1, Math.min(rows.length, 6)).forEach(row => {
+                rows.slice(1).forEach(row => {
                     tableHtml += "<tr>";
                     row.forEach(cell => {
-                        tableHtml += `<td>${cell}</td>`;
+                        const isProblem = cell.includes("Invalid") || cell.includes("Multiple");
+                        tableHtml += `<td class="${isProblem ? "problem" : ""}">${cell}</td>`;
                     });
                     tableHtml += "</tr>";
                 });
