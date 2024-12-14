@@ -18,8 +18,17 @@
         p {
             text-align: center;
         }
-        #preview, #results {
-            margin-top: 20px;
+        .file-input {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #preview-container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .preview {
+            margin: 20px;
             text-align: center;
         }
         table {
@@ -56,174 +65,91 @@
 </head>
 <body>
     <h1>Reconcise</h1>
-    <p>Sube los documentos (SOA y Reporte) para comenzar la reconciliación:</p>
+    <p>Sube dos archivos para comenzar:</p>
 
-    <div style="text-align: center;">
-        <label>SOA del Vendor:</label>
+    <div class="file-input">
+        <label for="soaFile">SOA del Vendor:</label>
         <input type="file" id="soaFile" /><br><br>
-        <label>Reporte (e.g., NetSuite):</label>
-        <input type="file" id="reportFile" />
+        <label for="netsuiteFile">Reporte de NetSuite:</label>
+        <input type="file" id="netsuiteFile" />
     </div>
 
-    <div id="preview"></div>
-    <div id="results"></div>
-
-    <button id="downloadResults" style="display: none;">Descargar Resultados</button>
+    <div id="preview-container">
+        <div id="preview-soa" class="preview">
+            <h3>Vista Previa del SOA</h3>
+            <div id="soaTable"></div>
+        </div>
+        <div id="preview-netsuite" class="preview">
+            <h3>Vista Previa del Reporte de NetSuite</h3>
+            <div id="netsuiteTable"></div>
+        </div>
+    </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const soaFileInput = document.getElementById("soaFile");
-            const reportFileInput = document.getElementById("reportFile");
-            const previewDiv = document.getElementById("preview");
-            const resultsDiv = document.getElementById("results");
-            const downloadButton = document.getElementById("downloadResults");
+            const soaInput = document.getElementById("soaFile");
+            const netsuiteInput = document.getElementById("netsuiteFile");
+            const soaTableDiv = document.getElementById("soaTable");
+            const netsuiteTableDiv = document.getElementById("netsuiteTable");
 
-            let files = {
-                soa: null,
-                report: null,
-                results: []
-            };
+            soaInput.addEventListener("change", () => handleFile(soaInput, soaTableDiv));
+            netsuiteInput.addEventListener("change", () => handleFile(netsuiteInput, netsuiteTableDiv));
 
-            soaFileInput.addEventListener("change", handleFile);
-            reportFileInput.addEventListener("change", handleFile);
-
-            function handleFile(event) {
-                const file = event.target.files[0];
+            function handleFile(input, tableDiv) {
+                const file = input.files[0];
                 if (!file) {
-                    alert("Por favor selecciona un archivo válido.");
+                    alert("Por favor selecciona un archivo.");
                     return;
                 }
 
                 const reader = new FileReader();
                 reader.onload = function (e) {
                     const content = e.target.result;
-                    const rows = parseCSV(content);
+                    const rows = content.split("\n").map(row => row.trim());
+                    const delimiter = detectDelimiter(content);
 
-                    if (event.target.id === "soaFile") {
-                        files.soa = rows;
-                        displayPreview("SOA", rows);
-                    } else {
-                        files.report = rows;
-                        displayPreview("Reporte", rows);
-                    }
-
-                    if (files.soa && files.report) {
-                        reconcile(files.soa, files.report);
-                    }
+                    const headers = rows[0].split(delimiter).map(cleanData);
+                    displayTable(rows, headers, delimiter, tableDiv);
                 };
                 reader.readAsText(file);
             }
 
-            function parseCSV(content) {
-                const rows = [];
-                const lines = content.split("\n");
-
-                lines.forEach(line => {
-                    const cells = [];
-                    let currentCell = '';
-                    let insideQuotes = false;
-
-                    for (let i = 0; i < line.length; i++) {
-                        const char = line[i];
-
-                        if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
-                            insideQuotes = !insideQuotes;
-                        } else if (char === ',' && !insideQuotes) {
-                            cells.push(currentCell.trim());
-                            currentCell = '';
-                        } else {
-                            currentCell += char;
-                        }
-                    }
-
-                    cells.push(currentCell.trim());
-                    rows.push(cells);
-                });
-
-                return rows;
+            function detectDelimiter(content) {
+                const delimiters = [',', '\t', ';'];
+                const counts = delimiters.map(delim => content.split(delim).length);
+                return delimiters[counts.indexOf(Math.max(...counts))];
             }
 
-            function displayPreview(type, rows) {
-                let tableHtml = `<h3>${type}</h3><table><thead><tr>`;
-                rows[0].forEach(header => {
+            function cleanData(value) {
+                return value.replace(/^\"|\"$/g, "").trim();
+            }
+
+            function displayTable(rows, headers, delimiter, tableDiv) {
+                if (rows.length < 2) {
+                    tableDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
+                    return;
+                }
+
+                let tableHtml = "<table><thead><tr>";
+                headers.forEach(header => {
                     tableHtml += `<th>${header}</th>`;
                 });
                 tableHtml += "</tr></thead><tbody>";
 
                 rows.slice(1, 6).forEach(row => {
+                    if (row.trim() === "") return;
+                    const columns = row.split(delimiter).map(cleanData);
+
                     tableHtml += "<tr>";
-                    row.forEach(cell => {
-                        tableHtml += `<td>${cell}</td>`;
+                    columns.forEach(column => {
+                        tableHtml += `<td>${column}</td>`;
                     });
                     tableHtml += "</tr>";
                 });
 
                 tableHtml += "</tbody></table>";
-                previewDiv.innerHTML += tableHtml;
+                tableDiv.innerHTML = tableHtml;
             }
-
-            function reconcile(soa, report) {
-                const soaHeaders = soa[0];
-                const reportHeaders = report[0];
-
-                const invoiceIndexSOA = soaHeaders.indexOf("Invoice Number");
-                const dueDateIndexSOA = soaHeaders.indexOf("Due Date");
-
-                const invoiceIndexReport = reportHeaders.indexOf("Invoice Number");
-                const amountIndexReport = reportHeaders.indexOf("Payment Amount");
-
-                const results = soa.slice(1).map(soaRow => {
-                    const soaInvoice = soaRow[invoiceIndexSOA];
-                    const soaDueDate = soaRow[dueDateIndexSOA];
-                    const match = report.slice(1).find(reportRow => reportRow[invoiceIndexReport] === soaInvoice);
-
-                    if (match) {
-                        return {
-                            status: "Matched",
-                            soa: soaRow,
-                            report: match
-                        };
-                    } else {
-                        return {
-                            status: "Not Found",
-                            soa: soaRow,
-                            report: null
-                        };
-                    }
-                });
-
-                files.results = results;
-                displayResults(results);
-            }
-
-            function displayResults(results) {
-                let tableHtml = `<h3>Resultados de la Reconciliación</h3><table><thead><tr><th>Estado</th><th>SOA</th><th>Reporte</th></tr></thead><tbody>`;
-
-                results.forEach(result => {
-                    tableHtml += `<tr>
-                        <td>${result.status}</td>
-                        <td>${result.soa.join(", ")}</td>
-                        <td>${result.report ? result.report.join(", ") : "N/A"}</td>
-                    </tr>`;
-                });
-
-                tableHtml += "</tbody></table>";
-                resultsDiv.innerHTML = tableHtml;
-                downloadButton.style.display = "block";
-            }
-
-            downloadButton.addEventListener("click", () => {
-                const csvContent = "data:text/csv;charset=utf-8," + files.results.map(result => {
-                    return [result.status, result.soa.join("; "), result.report ? result.report.join("; ") : ""].join(",");
-                }).join("\n");
-
-                const link = document.createElement("a");
-                link.setAttribute("href", encodeURI(csvContent));
-                link.setAttribute("download", "reconciliation_results.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            });
         });
     </script>
 </body>
