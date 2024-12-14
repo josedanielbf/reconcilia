@@ -12,12 +12,11 @@
             background-color: #f4f4f9;
         }
         h1 {
-            color: #333;
             text-align: center;
+            color: #333;
         }
         p {
             text-align: center;
-            margin-bottom: 20px;
         }
         #preview {
             margin-top: 20px;
@@ -43,54 +42,44 @@
     <h1>Reconcise</h1>
     <p>Sube un archivo para comenzar:</p>
 
-    <!-- Botón para subir archivo -->
     <div style="text-align: center;">
         <input type="file" id="soaFile" />
     </div>
 
-    <!-- Área para la previsualización -->
     <div id="preview"></div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             const fileInput = document.getElementById("soaFile");
-
-            if (fileInput) {
-                fileInput.addEventListener("change", handleFile);
-            } else {
-                console.error("No se encontró el elemento con id 'soaFile'");
+            if (!fileInput) {
+                console.error("No se encontró el elemento con id 'soaFile'.");
+                return;
             }
+
+            fileInput.addEventListener("change", handleFile);
 
             function handleFile(event) {
                 const file = event.target.files[0];
-                if (file) {
-                    console.log("Archivo seleccionado:", file.name);
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const text = e.target.result;
-                        console.log("Contenido del archivo cargado:");
-                        console.log(text);
-
-                        const delimiter = detectDelimiter(text);
-                        console.log("Delimitador detectado:", delimiter);
-
-                        const rows = text.split("\n");
-                        console.log("Número de filas en el archivo:", rows.length);
-
-                        displayPreview(rows, delimiter);
-                    };
-                    reader.readAsText(file);
-                } else {
+                if (!file) {
                     console.warn("No se seleccionó ningún archivo.");
+                    return;
                 }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    const rows = content.split("\n");
+                    const delimiter = detectDelimiter(content);
+
+                    displayPreview(rows, delimiter);
+                };
+                reader.readAsText(file);
             }
 
             function detectDelimiter(content) {
                 const delimiters = [',', '\t', ';'];
                 const counts = delimiters.map(delimiter => content.split(delimiter).length);
-                const maxIndex = counts.indexOf(Math.max(...counts));
-                console.log("Detectando delimitadores:", counts);
-                return delimiters[maxIndex];
+                return delimiters[counts.indexOf(Math.max(...counts))];
             }
 
             function displayPreview(rows, delimiter) {
@@ -102,18 +91,14 @@
 
                 let tableHtml = "<table><thead><tr>";
                 const headers = rows[0].split(delimiter);
-                console.log("Encabezados detectados:", headers);
 
                 headers.forEach(header => {
                     tableHtml += `<th>${header.trim()}</th>`;
                 });
                 tableHtml += "</tr></thead><tbody>";
 
-                rows.slice(1, 6).forEach((row, index) => {
-                    if (row.trim() === "") return; // Ignorar filas vacías
+                rows.slice(1, 6).forEach(row => {
                     const columns = row.split(delimiter);
-                    console.log(`Fila ${index + 1} procesada:`, columns);
-
                     tableHtml += "<tr>";
                     columns.forEach(column => {
                         tableHtml += `<td>${column.trim()}</td>`;
