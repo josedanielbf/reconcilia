@@ -1,61 +1,130 @@
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const fileInput = document.getElementById("soaFile");
-
-        if (fileInput) {
-            fileInput.addEventListener("change", handleFile);
-        } else {
-            console.error("No se encontró el elemento con id 'soaFile'");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconcise</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
         }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        p {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #preview {
+            margin-top: 20px;
+            text-align: center;
+        }
+        table {
+            margin: 0 auto;
+            border-collapse: collapse;
+            width: 80%;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reconcise</h1>
+    <p>Sube un archivo para comenzar:</p>
 
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const text = e.target.result;
-                    const delimiter = detectDelimiter(text);
-                    const rows = text.split("\n"); // Dividir en filas
-                    displayPreview(rows, delimiter);
-                };
-                reader.readAsText(file);
+    <!-- Botón para subir archivo -->
+    <div style="text-align: center;">
+        <input type="file" id="soaFile" />
+    </div>
+
+    <!-- Área para la previsualización -->
+    <div id="preview"></div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const fileInput = document.getElementById("soaFile");
+
+            if (fileInput) {
+                fileInput.addEventListener("change", handleFile);
             } else {
-                console.warn("No se seleccionó ningún archivo.");
-            }
-        }
-
-        function detectDelimiter(content) {
-            const delimiters = [',', '\t', ';'];
-            const counts = delimiters.map(delimiter => content.split(delimiter).length);
-            const maxIndex = counts.indexOf(Math.max(...counts));
-            return delimiters[maxIndex];
-        }
-
-        function displayPreview(rows, delimiter) {
-            const previewDiv = document.getElementById("preview");
-            if (rows.length < 2) {
-                previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
-                return;
+                console.error("No se encontró el elemento con id 'soaFile'");
             }
 
-            let tableHtml = "<table border='1'><thead><tr>";
-            const headers = rows[0].split(delimiter); // Obtener encabezados
-            headers.forEach(header => {
-                tableHtml += `<th>${header.trim()}</th>`;
-            });
-            tableHtml += "</tr></thead><tbody>";
+            function handleFile(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    console.log("Archivo seleccionado:", file.name);
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const text = e.target.result;
+                        console.log("Contenido del archivo cargado:");
+                        console.log(text);
 
-            rows.slice(1, 6).forEach(row => { // Mostrar hasta 5 filas
-                const columns = row.split(delimiter);
-                tableHtml += "<tr>";
-                columns.forEach(column => {
-                    tableHtml += `<td>${column.trim()}</td>`;
+                        const delimiter = detectDelimiter(text);
+                        console.log("Delimitador detectado:", delimiter);
+
+                        const rows = text.split("\n");
+                        console.log("Número de filas en el archivo:", rows.length);
+
+                        displayPreview(rows, delimiter);
+                    };
+                    reader.readAsText(file);
+                } else {
+                    console.warn("No se seleccionó ningún archivo.");
+                }
+            }
+
+            function detectDelimiter(content) {
+                const delimiters = [',', '\t', ';'];
+                const counts = delimiters.map(delimiter => content.split(delimiter).length);
+                const maxIndex = counts.indexOf(Math.max(...counts));
+                console.log("Detectando delimitadores:", counts);
+                return delimiters[maxIndex];
+            }
+
+            function displayPreview(rows, delimiter) {
+                const previewDiv = document.getElementById("preview");
+                if (rows.length < 2) {
+                    previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
+                    return;
+                }
+
+                let tableHtml = "<table><thead><tr>";
+                const headers = rows[0].split(delimiter);
+                console.log("Encabezados detectados:", headers);
+
+                headers.forEach(header => {
+                    tableHtml += `<th>${header.trim()}</th>`;
                 });
-                tableHtml += "</tr>";
-            });
+                tableHtml += "</tr></thead><tbody>";
 
-            tableHtml += "</tbody></table>";
-            previewDiv.innerHTML = tableHtml;
-        }
-    });
-</script>
+                rows.slice(1, 6).forEach((row, index) => {
+                    if (row.trim() === "") return; // Ignorar filas vacías
+                    const columns = row.split(delimiter);
+                    console.log(`Fila ${index + 1} procesada:`, columns);
+
+                    tableHtml += "<tr>";
+                    columns.forEach(column => {
+                        tableHtml += `<td>${column.trim()}</td>`;
+                    });
+                    tableHtml += "</tr>";
+                });
+
+                tableHtml += "</tbody></table>";
+                previewDiv.innerHTML = tableHtml;
+            }
+        });
+    </script>
+</body>
+</html>
