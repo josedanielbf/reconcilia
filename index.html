@@ -1,82 +1,67 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reconcise Test</title>
-    <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+<script>
+    document.getElementById("soaFile").addEventListener("change", handleFile);
+
+    let headers = []; // Encabezados del archivo
+    let selectedColumns = {}; // Columnas seleccionadas por el usuario
+
+    function handleFile(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const text = e.target.result;
+                const delimiter = detectDelimiter(text); // Detectar delimitador
+                headers = text.split("\n")[0].split(delimiter).map(cleanText); // Obtener encabezados
+                displayMappingOptions(); // Mostrar opciones de mapeo
+            };
+            reader.onerror = function () {
+                document.getElementById("preview").innerText = "Error al cargar el archivo.";
+            };
+            reader.readAsText(file);
+        } else {
+            document.getElementById("preview").innerText = "No se seleccionó ningún archivo.";
         }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-    </style>
-</head>
-<body>
-    <h1>Reconcise Test Page</h1>
-    <p>Si ves este texto, la página se está cargando correctamente.</p>
+    }
 
-    <!-- Botón para subir archivos -->
-    <input type="file" id="soaFile" />
+    function detectDelimiter(content) {
+        const delimiters = [',', '\t', ';'];
+        const lines = content.split('\n');
+        const counts = delimiters.map(delimiter => lines[0]?.split(delimiter).length || 0);
+        const maxIndex = counts.indexOf(Math.max(...counts));
+        return delimiters[maxIndex] || ',';
+    }
 
-    <!-- Área de previsualización -->
-    <div id="preview"></div>
+    function cleanText(text) {
+        return text.replace(/^"|"$/g, "").trim();
+    }
 
-    <script>
-        document.getElementById("soaFile").addEventListener("change", handleFile);
+    function displayMappingOptions() {
+        const previewDiv = document.getElementById("preview");
+        previewDiv.innerHTML = "<h3>Map Columns</h3>";
 
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const text = e.target.result;
-                    displayPreview(text); // Mostrar los datos en la tabla
-                };
-                reader.onerror = function () {
-                    document.getElementById("preview").innerText = "Error al cargar el archivo.";
-                };
-                reader.readAsText(file);
-            } else {
-                document.getElementById("preview").innerText = "No se seleccionó ningún archivo.";
-            }
-        }
-
-        function displayPreview(content) {
-            const previewDiv = document.getElementById("preview");
-            const rows = content.split("\n").slice(0, 5); // Primeras 5 filas para previsualización
-            if (rows.length < 2) {
-                previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
-                return;
-            }
-
-            let tableHtml = "<table><thead><tr>";
-            const headers = rows[0].split(","); // Usar comas como delimitador
+        const columnsToMap = ["Invoice Number", "Balance", "Due Date", "Payment Date"];
+        columnsToMap.forEach(column => {
+            let dropdownHtml = `<label>${column}:</label> <select id="${column.replace(/\s+/g, '')}">`;
             headers.forEach(header => {
-                tableHtml += `<th>${header.trim()}</th>`;
+                dropdownHtml += `<option value="${header}">${header}</option>`;
             });
-            tableHtml += "</tr></thead><tbody>";
+            dropdownHtml += "</select><br>";
+            previewDiv.innerHTML += dropdownHtml;
+        });
 
-            rows.slice(1).forEach(row => {
-                const columns = row.split(",");
-                tableHtml += "<tr>";
-                columns.forEach(column => {
-                    tableHtml += `<td>${column.trim()}</td>`;
-                });
-                tableHtml += "</tr>";
-            });
+        previewDiv.innerHTML += `<button id="saveMapping">Save Mapping</button>`;
 
-            tableHtml += "</tbody></table>";
-            previewDiv.innerHTML = tableHtml;
-        }
-    </script>
-</body>
-</html>
+        document.getElementById("saveMapping").addEventListener("click", saveMapping);
+    }
+
+    function saveMapping() {
+        selectedColumns = {
+            InvoiceNumber: document.getElementById("InvoiceNumber").value,
+            Balance: document.getElementById("Balance").value,
+            DueDate: document.getElementById("DueDate").value,
+            PaymentDate: document.getElementById("PaymentDate").value
+        };
+        console.log("Mapping Saved:", selectedColumns);
+        document.getElementById("preview").innerHTML = `<p>Mapping saved successfully!</p>`;
+    }
+</script>
