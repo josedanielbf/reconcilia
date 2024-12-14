@@ -8,10 +8,16 @@
             const reader = new FileReader();
             reader.onload = function (e) {
                 const text = e.target.result;
+                if (!text) {
+                    alert("El archivo está vacío o no se puede leer.");
+                    return;
+                }
                 const delimiter = detectDelimiter(text); // Detectar delimitador
                 displayPreview(text, event.target.id, delimiter);
             };
             reader.readAsText(file);
+        } else {
+            alert("No se seleccionó ningún archivo.");
         }
     }
 
@@ -19,18 +25,27 @@
         // Detectar si el delimitador es una coma, tabulación u otro
         const delimiters = [',', '\t', ';'];
         const lines = content.split('\n');
-        const counts = delimiters.map(delimiter => lines[0].split(delimiter).length);
+        const counts = delimiters.map(delimiter => lines[0]?.split(delimiter).length || 0);
         const maxIndex = counts.indexOf(Math.max(...counts));
-        return delimiters[maxIndex];
+        return delimiters[maxIndex] || ','; // Predeterminar ',' si no detecta delimitador
     }
 
     function displayPreview(content, fileType, delimiter) {
         const previewDiv = document.getElementById("preview");
-        const rows = content.split("\n").slice(0, 5); // Previsualizar primeras 5 filas
-        let tableHtml = `<h3>Preview (${fileType})</h3><table><thead><tr>`;
+        if (!content || !delimiter) {
+            previewDiv.innerHTML = "<p>No se pudo previsualizar el archivo.</p>";
+            return;
+        }
 
-        // Dividir las columnas de la primera fila para crear los encabezados
+        const rows = content.split("\n").slice(0, 5); // Previsualizar primeras 5 filas
+        if (rows.length < 2) {
+            previewDiv.innerHTML = "<p>El archivo no contiene datos suficientes.</p>";
+            return;
+        }
+
+        let tableHtml = `<h3>Preview (${fileType})</h3><table><thead><tr>`;
         const headers = rows[0].split(delimiter).map(cleanText);
+
         headers.forEach(header => {
             tableHtml += `<th>${header}</th>`;
         });
