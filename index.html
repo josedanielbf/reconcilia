@@ -78,9 +78,9 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const fileInput = document.getElementById("soaFile");
-            const previewDiv = document.getElementById("preview");
             const mappingDiv = document.getElementById("mapping");
             const mappingFieldsDiv = document.getElementById("mapping-fields");
+            const previewDiv = document.getElementById("preview");
             const confirmMappingButton = document.getElementById("confirmMapping");
 
             let headers = []; // Almacena los encabezados del archivo
@@ -97,13 +97,11 @@
                 const reader = new FileReader();
                 reader.onload = function (e) {
                     const content = e.target.result;
-                    const rows = content.split("\n").filter(row => row.trim() !== ""); // Filtra filas vacías
+                    const rows = content.split("\n").map(row => row.trim());
                     const delimiter = detectDelimiter(content);
 
-                    headers = cleanRow(rows[0], delimiter); // Limpia encabezados
-                    const dataRows = rows.slice(1).map(row => cleanRow(row, delimiter)); // Limpia datos
-
-                    displayPreview(headers, dataRows);
+                    headers = rows[0].split(delimiter).map(cleanData);
+                    displayPreview(rows, delimiter);
                     showMappingOptions(headers);
                 };
                 reader.readAsText(file);
@@ -115,20 +113,16 @@
                 return delimiters[counts.indexOf(Math.max(...counts))];
             }
 
-            function cleanRow(row, delimiter) {
-                const columns = row.split(delimiter).map(column => {
-                    return column
-                        .replace(/^["']|["']$/g, "") // Elimina comillas
-                        .replace(/,/g, "") // Elimina comas en números
-                        .replace(/[$£€]/g, "") // Elimina símbolos de moneda
-                        .trim(); // Elimina espacios
-                });
-                return columns;
+            function cleanData(value) {
+                return value.replace(/^\"|\"$/g, "") // Elimina comillas
+                            .replace(/,/g, "")        // Elimina comas en números
+                            .replace(/\s+/g, " ")    // Normaliza espacios
+                            .trim();                   // Elimina espacios al inicio y final
             }
 
-            function displayPreview(headers, rows) {
-                if (rows.length === 0) {
-                    previewDiv.innerHTML = "<p>No hay suficientes datos para mostrar.</p>";
+            function displayPreview(rows, delimiter) {
+                if (rows.length < 2) {
+                    previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
                     return;
                 }
 
@@ -138,10 +132,18 @@
                 });
                 tableHtml += "</tr></thead><tbody>";
 
-                rows.slice(0, 10).forEach(row => { // Muestra las primeras 10 filas
+                rows.slice(1, 6).forEach(row => {
+                    if (row.trim() === "") return;
+                    const columns = row.split(delimiter).map(cleanData);
+
+                    // Asegura que el número de columnas coincida con los encabezados
+                    while (columns.length < headers.length) {
+                        columns.push("");
+                    }
+
                     tableHtml += "<tr>";
-                    row.forEach(cell => {
-                        tableHtml += `<td>${cell}</td>`;
+                    columns.forEach(column => {
+                        tableHtml += `<td>${column}</td>`;
                     });
                     tableHtml += "</tr>";
                 });
