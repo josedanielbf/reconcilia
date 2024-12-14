@@ -1,71 +1,199 @@
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const fileInput = document.getElementById("soaFile");
-
-        if (!fileInput) {
-            console.error("No se encontró el elemento con id 'soaFile'.");
-            return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconcise</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
         }
-
-        fileInput.addEventListener("change", handleFile);
-
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (!file) {
-                console.warn("No se seleccionó ningún archivo.");
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const content = e.target.result;
-                const rows = content.split("\n");
-                const delimiter = detectDelimiter(content);
-
-                displayPreview(rows, delimiter);
-            };
-            reader.readAsText(file);
+        h1 {
+            text-align: center;
+            color: #333;
         }
-
-        function detectDelimiter(content) {
-            const delimiters = [',', '\t', ';'];
-            const counts = delimiters.map(delimiter => content.split(delimiter).length);
-            return delimiters[counts.indexOf(Math.max(...counts))];
+        p {
+            text-align: center;
         }
+        #preview, #mapping {
+            margin-top: 20px;
+            text-align: center;
+        }
+        table {
+            margin: 0 auto;
+            border-collapse: collapse;
+            width: 90%;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        td {
+            background-color: #f9f9f9;
+        }
+        select {
+            margin: 5px;
+            padding: 8px;
+            font-size: 14px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reconcise</h1>
+    <p>Sube un archivo para comenzar:</p>
 
-        function displayPreview(rows, delimiter) {
+    <div style="text-align: center;">
+        <input type="file" id="soaFile" />
+    </div>
+
+    <div id="preview"></div>
+    <div id="mapping" style="display: none;">
+        <h3>Mapea las columnas clave:</h3>
+        <p>Selecciona qué columna corresponde a cada campo:</p>
+        <div id="mapping-fields"></div>
+        <button id="confirmMapping">Confirmar Mapeo</button>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const fileInput = document.getElementById("soaFile");
+            const mappingDiv = document.getElementById("mapping");
+            const mappingFieldsDiv = document.getElementById("mapping-fields");
             const previewDiv = document.getElementById("preview");
-            if (rows.length < 2) {
-                previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
+            const confirmMappingButton = document.getElementById("confirmMapping");
+
+            let headers = []; // Almacenará los encabezados del archivo
+
+            if (!fileInput) {
+                console.error("No se encontró el elemento con id 'soaFile'.");
                 return;
             }
 
-            let tableHtml = "<table><thead><tr>";
-            const headers = rows[0].split(delimiter);
+            fileInput.addEventListener("change", handleFile);
 
-            headers.forEach(header => {
-                tableHtml += `<th>${cleanData(header)}</th>`;
-            });
-            tableHtml += "</tr></thead><tbody>";
+            function handleFile(event) {
+                const file = event.target.files[0];
+                if (!file) {
+                    console.warn("No se seleccionó ningún archivo.");
+                    return;
+                }
 
-            rows.slice(1, 6).forEach(row => {
-                if (row.trim() === "") return; // Ignorar filas vacías
-                const columns = row.split(delimiter);
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    const rows = content.split("\n");
+                    const delimiter = detectDelimiter(content);
 
-                tableHtml += "<tr>";
-                columns.forEach(column => {
-                    tableHtml += `<td>${cleanData(column)}</td>`;
+                    headers = rows[0].split(delimiter).map(cleanData); // Extrae los encabezados
+                    displayPreview(rows, delimiter);
+                    showMappingOptions(headers);
+                };
+                reader.readAsText(file);
+            }
+
+            function detectDelimiter(content) {
+                const delimiters = [',', '\t', ';'];
+                const counts = delimiters.map(delimiter => content.split(delimiter).length);
+                return delimiters[counts.indexOf(Math.max(...counts))];
+            }
+
+            function displayPreview(rows, delimiter) {
+                if (rows.length < 2) {
+                    previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
+                    return;
+                }
+
+                let tableHtml = "<table><thead><tr>";
+                headers = rows[0].split(delimiter).map(cleanData);
+
+                headers.forEach(header => {
+                    tableHtml += `<th>${header}</th>`;
                 });
-                tableHtml += "</tr>";
+                tableHtml += "</tr></thead><tbody>";
+
+                rows.slice(1, 6).forEach(row => {
+                    if (row.trim() === "") return; // Ignorar filas vacías
+                    const columns = row.split(delimiter);
+
+                    tableHtml += "<tr>";
+                    columns.forEach(column => {
+                        tableHtml += `<td>${cleanData(column)}</td>`;
+                    });
+                    tableHtml += "</tr>";
+                });
+
+                tableHtml += "</tbody></table>";
+                previewDiv.innerHTML = tableHtml;
+            }
+
+            function cleanData(value) {
+                return value.replace(/^["']|["']$/g, "").trim(); // Elimina comillas y espacios
+            }
+
+            function showMappingOptions(headers) {
+                mappingFieldsDiv.innerHTML = ""; // Limpia el área de mapeo
+
+                const fields = [
+                    { id: "invoiceNumber", name: "Invoice Number" },
+                    { id: "amount", name: "Amount" },
+                    { id: "dueDate", name: "Due Date" },
+                    { id: "status", name: "Status" }
+                ];
+
+                fields.forEach(field => {
+                    const select = document.createElement("select");
+                    select.id = field.id;
+                    headers.forEach(header => {
+                        const option = document.createElement("option");
+                        option.value = header;
+                        option.textContent = header;
+                        select.appendChild(option);
+                    });
+
+                    const label = document.createElement("label");
+                    label.textContent = field.name;
+                    label.style.display = "block";
+                    label.appendChild(select);
+
+                    mappingFieldsDiv.appendChild(label);
+                });
+
+                mappingDiv.style.display = "block";
+            }
+
+            confirmMappingButton.addEventListener("click", () => {
+                const mappings = {
+                    invoiceNumber: document.getElementById("invoiceNumber").value,
+                    amount: document.getElementById("amount").value,
+                    dueDate: document.getElementById("dueDate").value,
+                    status: document.getElementById("status").value
+                };
+
+                console.log("Mapeo confirmado:", mappings);
+                alert("Mapeo de columnas confirmado. Puedes continuar.");
             });
-
-            tableHtml += "</tbody></table>";
-            previewDiv.innerHTML = tableHtml;
-        }
-
-        function cleanData(value) {
-            // Elimina comillas dobles, comillas simples, y espacios innecesarios
-            return value.replace(/^["']|["']$/g, "").trim();
-        }
-    });
-</script>
+        });
+    </script>
+</body>
+</html>
