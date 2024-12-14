@@ -61,13 +61,13 @@
             const reportFileInput = document.getElementById("reportFile");
             const previewDiv = document.getElementById("preview");
 
-            soaFileInput.addEventListener("change", handleFile);
-            reportFileInput.addEventListener("change", handleFile);
-
             let files = {
                 soa: null,
                 report: null
             };
+
+            soaFileInput.addEventListener("change", handleFile);
+            reportFileInput.addEventListener("change", handleFile);
 
             function handleFile(event) {
                 const file = event.target.files[0];
@@ -82,11 +82,11 @@
                     const rows = parseCSV(content);
 
                     if (event.target.id === "soaFile") {
-                        files.soa = rows;
-                        displayPreview("SOA", rows);
+                        files.soa = cleanRows(rows);
+                        displayPreview("SOA", files.soa);
                     } else {
-                        files.report = rows;
-                        displayPreview("Reporte", rows);
+                        files.report = cleanRows(rows);
+                        displayPreview("Reporte", files.report);
                     }
 
                     if (files.soa && files.report) {
@@ -125,6 +125,18 @@
                 return rows;
             }
 
+            function cleanRows(rows) {
+                return rows.map(row => row.map(cell => cleanData(cell)));
+            }
+
+            function cleanData(value) {
+                return value
+                    .replace(/^["']|["']$/g, "") // Elimina comillas iniciales y finales
+                    .replace(/,/g, "")          // Elimina comas internas
+                    .replace(/\s+/g, " ")       // Normaliza los espacios
+                    .trim();                    // Elimina espacios al inicio y al final
+            }
+
             function displayPreview(type, rows) {
                 let tableHtml = `<h3>${type}</h3><table><thead><tr>`;
                 rows[0].forEach(header => {
@@ -145,26 +157,41 @@
             }
 
             function reconcile(soa, report) {
-                // Identificar las columnas clave por índice (e.g., Invoice Number, Payment Amount)
                 const soaHeaders = soa[0];
                 const reportHeaders = report[0];
 
                 const invoiceIndexSOA = soaHeaders.indexOf("Invoice Number");
+                const dueDateIndexSOA = soaHeaders.indexOf("Due Date");
                 const invoiceIndexReport = reportHeaders.indexOf("Invoice Number");
+                const paymentAmountIndexReport = reportHeaders.indexOf("Payment Amount");
+                const statusIndexReport = reportHeaders.indexOf("Status");
 
                 const result = soa.slice(1).map(soaRow => {
                     const soaInvoice = soaRow[invoiceIndexSOA];
                     const match = report.slice(1).find(reportRow => reportRow[invoiceIndexReport] === soaInvoice);
 
                     if (match) {
-                        return { status: "Matched", soa: soaRow, report: match };
+                        return {
+                            status: match[statusIndexReport] || "Matched",
+                            invoice: soaInvoice,
+                            dueDate: soaRow[dueDateIndexSOA],
+                            paymentAmount: match[paymentAmountIndexReport]
+                        };
                     } else {
-                        return { status: "Not Found", soa: soaRow, report: null };
+                        return { status: "Not Found", invoice: soaInvoice };
                     }
                 });
 
                 console.log("Resultado de la Reconciliación:", result);
-                alert("Reconciliación completada. Revisa la consola para más detalles.");
+                generateReport(result);
+            }
+
+            function generateReport(results) {
+                let matched = results.filter(r => r.status === "Matched").length;
+                let unmatched = results.filter(r => r.status === "Not Found").length;
+
+                alert(`Reconciliación completada: ${matched} coinciden, ${unmatched} no se encontraron.`);
+                console.log("Detalles del Reporte:", results);
             }
         });
     </script>
