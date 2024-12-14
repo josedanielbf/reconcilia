@@ -107,7 +107,7 @@
                     rows = content.split("\n").map(row => row.split(delimiter).map(cleanData));
                     headers = rows[0]; // Encabezados en la primera fila
 
-                    // Limpieza avanzada para "Memo" y otras columnas específicas
+                    // Limpieza avanzada para columnas específicas
                     rows = rows.map((row, index) => {
                         if (index === 0) return row; // Encabezados
                         return row.map((value, colIndex) => {
@@ -142,13 +142,17 @@
 
                 if (columnName === "Amount (Foreign Currency)") {
                     // Limpia valores numéricos y convierte a formato estándar
-                    return value.replace(/[^\d.-]/g, ""); // Remueve símbolos no numéricos
+                    return value.replace(/[^\d.-]/g, ""); // Remueve caracteres no numéricos
                 }
 
                 if (columnName === "Date" || columnName === "Due Date/Receive By") {
-                    // Formatea fechas
-                    const date = new Date(value);
-                    return isNaN(date) ? "Invalid Date" : date.toLocaleDateString("en-US");
+                    // Verifica formato de fecha
+                    const parts = value.split("/");
+                    if (parts.length === 3) {
+                        const [month, day, year] = parts;
+                        return new Date(`${year}-${month}-${day}`).toLocaleDateString("en-US");
+                    }
+                    return value; // Si no se puede convertir, deja el valor como está
                 }
 
                 return value; // Retorna el valor limpio
