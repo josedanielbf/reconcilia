@@ -18,7 +18,7 @@
         p {
             text-align: center;
         }
-        #preview, #mapping {
+        #preview, #results {
             margin-top: 20px;
             text-align: center;
         }
@@ -40,11 +40,6 @@
         td {
             background-color: #f9f9f9;
         }
-        select {
-            margin: 5px;
-            padding: 8px;
-            font-size: 14px;
-        }
         button {
             margin-top: 20px;
             padding: 10px 20px;
@@ -61,119 +56,174 @@
 </head>
 <body>
     <h1>Reconcise</h1>
-    <p>Sube los archivos para comenzar:</p>
+    <p>Sube los documentos (SOA y Reporte) para comenzar la reconciliación:</p>
 
     <div style="text-align: center;">
-        <input type="file" id="soaFile" />
-        <input type="file" id="netsuiteFile" />
+        <label>SOA del Vendor:</label>
+        <input type="file" id="soaFile" /><br><br>
+        <label>Reporte (e.g., NetSuite):</label>
+        <input type="file" id="reportFile" />
     </div>
 
     <div id="preview"></div>
+    <div id="results"></div>
+
+    <button id="downloadResults" style="display: none;">Descargar Resultados</button>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const soaFileInput = document.getElementById("soaFile");
-            const netsuiteFileInput = document.getElementById("netsuiteFile");
+            const reportFileInput = document.getElementById("reportFile");
             const previewDiv = document.getElementById("preview");
+            const resultsDiv = document.getElementById("results");
+            const downloadButton = document.getElementById("downloadResults");
 
-            let soaData = [];
-            let netsuiteData = [];
+            let files = {
+                soa: null,
+                report: null,
+                results: []
+            };
 
-            soaFileInput.addEventListener("change", (event) => handleFile(event, "soa"));
-            netsuiteFileInput.addEventListener("change", (event) => handleFile(event, "netsuite"));
+            soaFileInput.addEventListener("change", handleFile);
+            reportFileInput.addEventListener("change", handleFile);
 
-            function handleFile(event, type) {
+            function handleFile(event) {
                 const file = event.target.files[0];
                 if (!file) {
-                    alert("Por favor selecciona un archivo.");
+                    alert("Por favor selecciona un archivo válido.");
                     return;
                 }
 
                 const reader = new FileReader();
                 reader.onload = function (e) {
                     const content = e.target.result;
-                    const rows = content.split("\n").map(row => row.trim());
-                    const delimiter = detectDelimiter(content);
-                    const data = rows.map(row => row.split(delimiter).map(cleanData));
+                    const rows = parseCSV(content);
 
-                    if (type === "soa") {
-                        soaData = data;
-                    } else if (type === "netsuite") {
-                        netsuiteData = data;
+                    if (event.target.id === "soaFile") {
+                        files.soa = rows;
+                        displayPreview("SOA", rows);
+                    } else {
+                        files.report = rows;
+                        displayPreview("Reporte", rows);
                     }
 
-                    displayPreview();
+                    if (files.soa && files.report) {
+                        reconcile(files.soa, files.report);
+                    }
                 };
                 reader.readAsText(file);
             }
 
-            function detectDelimiter(content) {
-                const delimiters = [',', '\t', ';'];
-                const counts = delimiters.map(delim => content.split(delim).length);
-                return delimiters[counts.indexOf(Math.max(...counts))];
-            }
+            function parseCSV(content) {
+                const rows = [];
+                const lines = content.split("\n");
 
-            function cleanData(value) {
-                return value.replace(/^"|"$/g, '').trim();
-            }
+                lines.forEach(line => {
+                    const cells = [];
+                    let currentCell = '';
+                    let insideQuotes = false;
 
-            function displayPreview() {
-                previewDiv.innerHTML = "";
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
 
-                if (soaData.length > 0) {
-                    previewDiv.innerHTML += "<h3>SOA Preview:</h3>" + generateTableHTML(soaData);
-                }
-                if (netsuiteData.length > 0) {
-                    previewDiv.innerHTML += "<h3>NetSuite Preview:</h3>" + generateTableHTML(netsuiteData);
-                }
-                if (soaData.length > 0 && netsuiteData.length > 0) {
-                    const reconciliationResult = reconcileData(soaData, netsuiteData);
-                    previewDiv.innerHTML += "<h3>Reconciliation Result:</h3>" + generateTableHTML(reconciliationResult);
-                }
-            }
-
-            function generateTableHTML(data) {
-                let tableHTML = "<table><thead><tr>";
-                data[0].forEach(header => {
-                    tableHTML += `<th>${header}</th>`;
-                });
-                tableHTML += "</tr></thead><tbody>";
-
-                data.slice(1).forEach(row => {
-                    tableHTML += "<tr>";
-                    row.forEach(cell => {
-                        tableHTML += `<td>${cell}</td>`;
-                    });
-                    tableHTML += "</tr>";
-                });
-
-                tableHTML += "</tbody></table>";
-                return tableHTML;
-            }
-
-            function reconcileData(soa, netsuite) {
-                const result = [soa[0].concat("Reconciliation Status", "Reconciliation Notes")];
-                const netsuiteMap = new Map();
-
-                netsuite.slice(1).forEach(row => {
-                    const invoiceNumber = row[0]; // Assuming Invoice Number is the first column
-                    netsuiteMap.set(invoiceNumber, row);
-                });
-
-                soa.slice(1).forEach(row => {
-                    const invoiceNumber = row[0]; // Assuming Invoice Number is the first column
-                    if (netsuiteMap.has(invoiceNumber)) {
-                        const netsuiteRow = netsuiteMap.get(invoiceNumber);
-                        const status = netsuiteRow[7]; // Assuming Status is the 8th column
-                        row.push(status, "Matched");
-                    } else {
-                        row.push("Not Found", "Invoice not present in NetSuite report");
+                        if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
+                            insideQuotes = !insideQuotes;
+                        } else if (char === ',' && !insideQuotes) {
+                            cells.push(currentCell.trim());
+                            currentCell = '';
+                        } else {
+                            currentCell += char;
+                        }
                     }
-                    result.push(row);
+
+                    cells.push(currentCell.trim());
+                    rows.push(cells);
                 });
 
-                return result;
+                return rows;
             }
+
+            function displayPreview(type, rows) {
+                let tableHtml = `<h3>${type}</h3><table><thead><tr>`;
+                rows[0].forEach(header => {
+                    tableHtml += `<th>${header}</th>`;
+                });
+                tableHtml += "</tr></thead><tbody>";
+
+                rows.slice(1, 6).forEach(row => {
+                    tableHtml += "<tr>";
+                    row.forEach(cell => {
+                        tableHtml += `<td>${cell}</td>`;
+                    });
+                    tableHtml += "</tr>";
+                });
+
+                tableHtml += "</tbody></table>";
+                previewDiv.innerHTML += tableHtml;
+            }
+
+            function reconcile(soa, report) {
+                const soaHeaders = soa[0];
+                const reportHeaders = report[0];
+
+                const invoiceIndexSOA = soaHeaders.indexOf("Invoice Number");
+                const dueDateIndexSOA = soaHeaders.indexOf("Due Date");
+
+                const invoiceIndexReport = reportHeaders.indexOf("Invoice Number");
+                const amountIndexReport = reportHeaders.indexOf("Payment Amount");
+
+                const results = soa.slice(1).map(soaRow => {
+                    const soaInvoice = soaRow[invoiceIndexSOA];
+                    const soaDueDate = soaRow[dueDateIndexSOA];
+                    const match = report.slice(1).find(reportRow => reportRow[invoiceIndexReport] === soaInvoice);
+
+                    if (match) {
+                        return {
+                            status: "Matched",
+                            soa: soaRow,
+                            report: match
+                        };
+                    } else {
+                        return {
+                            status: "Not Found",
+                            soa: soaRow,
+                            report: null
+                        };
+                    }
+                });
+
+                files.results = results;
+                displayResults(results);
+            }
+
+            function displayResults(results) {
+                let tableHtml = `<h3>Resultados de la Reconciliación</h3><table><thead><tr><th>Estado</th><th>SOA</th><th>Reporte</th></tr></thead><tbody>`;
+
+                results.forEach(result => {
+                    tableHtml += `<tr>
+                        <td>${result.status}</td>
+                        <td>${result.soa.join(", ")}</td>
+                        <td>${result.report ? result.report.join(", ") : "N/A"}</td>
+                    </tr>`;
+                });
+
+                tableHtml += "</tbody></table>";
+                resultsDiv.innerHTML = tableHtml;
+                downloadButton.style.display = "block";
+            }
+
+            downloadButton.addEventListener("click", () => {
+                const csvContent = "data:text/csv;charset=utf-8," + files.results.map(result => {
+                    return [result.status, result.soa.join("; "), result.report ? result.report.join("; ") : ""].join(",");
+                }).join("\n");
+
+                const link = document.createElement("a");
+                link.setAttribute("href", encodeURI(csvContent));
+                link.setAttribute("download", "reconciliation_results.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
         });
     </script>
 </body>
