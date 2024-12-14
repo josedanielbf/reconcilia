@@ -18,7 +18,7 @@
         p {
             text-align: center;
         }
-        #preview, #results {
+        #preview {
             margin-top: 20px;
             text-align: center;
         }
@@ -40,18 +40,6 @@
         td {
             background-color: #f9f9f9;
         }
-        button {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
     </style>
 </head>
 <body>
@@ -66,26 +54,20 @@
     </div>
 
     <div id="preview"></div>
-    <div id="results"></div>
-
-    <button id="downloadResults" style="display: none;">Descargar Resultados</button>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const soaFileInput = document.getElementById("soaFile");
             const reportFileInput = document.getElementById("reportFile");
             const previewDiv = document.getElementById("preview");
-            const resultsDiv = document.getElementById("results");
-            const downloadButton = document.getElementById("downloadResults");
-
-            let files = {
-                soa: null,
-                report: null,
-                results: []
-            };
 
             soaFileInput.addEventListener("change", handleFile);
             reportFileInput.addEventListener("change", handleFile);
+
+            let files = {
+                soa: null,
+                report: null
+            };
 
             function handleFile(event) {
                 const file = event.target.files[0];
@@ -163,67 +145,27 @@
             }
 
             function reconcile(soa, report) {
+                // Identificar las columnas clave por índice (e.g., Invoice Number, Payment Amount)
                 const soaHeaders = soa[0];
                 const reportHeaders = report[0];
 
                 const invoiceIndexSOA = soaHeaders.indexOf("Invoice Number");
-                const dueDateIndexSOA = soaHeaders.indexOf("Due Date");
-
                 const invoiceIndexReport = reportHeaders.indexOf("Invoice Number");
-                const amountIndexReport = reportHeaders.indexOf("Payment Amount");
 
-                const results = soa.slice(1).map(soaRow => {
+                const result = soa.slice(1).map(soaRow => {
                     const soaInvoice = soaRow[invoiceIndexSOA];
-                    const soaDueDate = soaRow[dueDateIndexSOA];
                     const match = report.slice(1).find(reportRow => reportRow[invoiceIndexReport] === soaInvoice);
 
                     if (match) {
-                        return {
-                            status: "Matched",
-                            soa: soaRow,
-                            report: match
-                        };
+                        return { status: "Matched", soa: soaRow, report: match };
                     } else {
-                        return {
-                            status: "Not Found",
-                            soa: soaRow,
-                            report: null
-                        };
+                        return { status: "Not Found", soa: soaRow, report: null };
                     }
                 });
 
-                files.results = results;
-                displayResults(results);
+                console.log("Resultado de la Reconciliación:", result);
+                alert("Reconciliación completada. Revisa la consola para más detalles.");
             }
-
-            function displayResults(results) {
-                let tableHtml = `<h3>Resultados de la Reconciliación</h3><table><thead><tr><th>Estado</th><th>SOA</th><th>Reporte</th></tr></thead><tbody>`;
-
-                results.forEach(result => {
-                    tableHtml += `<tr>
-                        <td>${result.status}</td>
-                        <td>${result.soa.join(", ")}</td>
-                        <td>${result.report ? result.report.join(", ") : "N/A"}</td>
-                    </tr>`;
-                });
-
-                tableHtml += "</tbody></table>";
-                resultsDiv.innerHTML = tableHtml;
-                downloadButton.style.display = "block";
-            }
-
-            downloadButton.addEventListener("click", () => {
-                const csvContent = "data:text/csv;charset=utf-8," + files.results.map(result => {
-                    return [result.status, result.soa.join("; "), result.report ? result.report.join("; ") : ""].join(",");
-                }).join("\n");
-
-                const link = document.createElement("a");
-                link.setAttribute("href", encodeURI(csvContent));
-                link.setAttribute("download", "reconciliation_results.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            });
         });
     </script>
 </body>
