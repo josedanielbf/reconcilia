@@ -1,126 +1,71 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reconcise</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f4f4f9;
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        p {
-            text-align: center;
-        }
-        #preview {
-            margin-top: 20px;
-            text-align: center;
-        }
-        table {
-            margin: 0 auto;
-            border-collapse: collapse;
-            width: 90%;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 10px;
-            text-align: left;
-            white-space: nowrap;
-        }
-        th {
-            background-color: #007bff;
-            color: white;
-        }
-        td {
-            background-color: #f9f9f9;
-        }
-    </style>
-</head>
-<body>
-    <h1>Reconcise</h1>
-    <p>Sube un archivo para comenzar:</p>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const fileInput = document.getElementById("soaFile");
 
-    <div style="text-align: center;">
-        <input type="file" id="soaFile" />
-    </div>
+        if (!fileInput) {
+            console.error("No se encontró el elemento con id 'soaFile'.");
+            return;
+        }
 
-    <div id="preview"></div>
+        fileInput.addEventListener("change", handleFile);
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const fileInput = document.getElementById("soaFile");
-
-            if (!fileInput) {
-                console.error("No se encontró el elemento con id 'soaFile'.");
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                console.warn("No se seleccionó ningún archivo.");
                 return;
             }
 
-            fileInput.addEventListener("change", handleFile);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const rows = content.split("\n");
+                const delimiter = detectDelimiter(content);
 
-            function handleFile(event) {
-                const file = event.target.files[0];
-                if (!file) {
-                    console.warn("No se seleccionó ningún archivo.");
-                    return;
-                }
+                displayPreview(rows, delimiter);
+            };
+            reader.readAsText(file);
+        }
 
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const content = e.target.result;
-                    const rows = content.split("\n");
-                    const delimiter = detectDelimiter(content);
+        function detectDelimiter(content) {
+            const delimiters = [',', '\t', ';'];
+            const counts = delimiters.map(delimiter => content.split(delimiter).length);
+            return delimiters[counts.indexOf(Math.max(...counts))];
+        }
 
-                    displayPreview(rows, delimiter);
-                };
-                reader.readAsText(file);
+        function displayPreview(rows, delimiter) {
+            const previewDiv = document.getElementById("preview");
+            if (rows.length < 2) {
+                previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
+                return;
             }
 
-            function detectDelimiter(content) {
-                const delimiters = [',', '\t', ';'];
-                const counts = delimiters.map(delimiter => content.split(delimiter).length);
-                return delimiters[counts.indexOf(Math.max(...counts))];
-            }
+            let tableHtml = "<table><thead><tr>";
+            const headers = rows[0].split(delimiter);
 
-            function displayPreview(rows, delimiter) {
-                const previewDiv = document.getElementById("preview");
-                if (rows.length < 2) {
-                    previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
-                    return;
-                }
+            headers.forEach(header => {
+                tableHtml += `<th>${cleanData(header)}</th>`;
+            });
+            tableHtml += "</tr></thead><tbody>";
 
-                let tableHtml = "<table><thead><tr>";
-                const headers = rows[0].split(delimiter);
+            rows.slice(1, 6).forEach(row => {
+                if (row.trim() === "") return; // Ignorar filas vacías
+                const columns = row.split(delimiter);
 
-                headers.forEach(header => {
-                    tableHtml += `<th>${cleanData(header)}</th>`;
+                tableHtml += "<tr>";
+                columns.forEach(column => {
+                    tableHtml += `<td>${cleanData(column)}</td>`;
                 });
-                tableHtml += "</tr></thead><tbody>";
+                tableHtml += "</tr>";
+            });
 
-                rows.slice(1, 6).forEach(row => {
-                    if (row.trim() === "") return; // Ignorar filas vacías
-                    const columns = row.split(delimiter);
+            tableHtml += "</tbody></table>";
+            previewDiv.innerHTML = tableHtml;
+        }
 
-                    tableHtml += "<tr>";
-                    columns.forEach(column => {
-                        tableHtml += `<td>${cleanData(column)}</td>`;
-                    });
-                    tableHtml += "</tr>";
-                });
-
-                tableHtml += "</tbody></table>";
-                previewDiv.innerHTML = tableHtml;
-            }
-
-            function cleanData(value) {
-                return value.replace(/^"|"$/g, "").trim(); // Elimina comillas al inicio y final
-            }
-        });
-    </script>
-</body>
-</html>
+        function cleanData(value) {
+            // Elimina comillas dobles, comillas simples, y espacios innecesarios
+            return value.replace(/^["']|["']$/g, "").trim();
+        }
+    });
+</script>
