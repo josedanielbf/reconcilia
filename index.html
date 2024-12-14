@@ -40,6 +40,18 @@
         td {
             background-color: #f9f9f9;
         }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -54,17 +66,23 @@
     </div>
 
     <div id="preview"></div>
+    <div style="text-align: center;">
+        <button id="downloadReport" style="display: none;">Descargar Reporte</button>
+    </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const soaFileInput = document.getElementById("soaFile");
             const reportFileInput = document.getElementById("reportFile");
             const previewDiv = document.getElementById("preview");
+            const downloadButton = document.getElementById("downloadReport");
 
             let files = {
                 soa: null,
                 report: null
             };
+
+            let reconciliationResults = [];
 
             soaFileInput.addEventListener("change", handleFile);
             reportFileInput.addEventListener("change", handleFile);
@@ -90,7 +108,8 @@
                     }
 
                     if (files.soa && files.report) {
-                        reconcile(files.soa, files.report);
+                        reconciliationResults = reconcile(files.soa, files.report);
+                        downloadButton.style.display = "block";
                     }
                 };
                 reader.readAsText(file);
@@ -161,12 +180,11 @@
                 const reportHeaders = report[0];
 
                 const invoiceIndexSOA = soaHeaders.indexOf("Invoice Number");
-                const dueDateIndexSOA = soaHeaders.indexOf("Due Date");
                 const invoiceIndexReport = reportHeaders.indexOf("Invoice Number");
-                const paymentAmountIndexReport = reportHeaders.indexOf("Payment Amount");
                 const statusIndexReport = reportHeaders.indexOf("Status");
+                const dueDateIndexSOA = soaHeaders.indexOf("Due Date");
 
-                const result = soa.slice(1).map(soaRow => {
+                return soa.slice(1).map(soaRow => {
                     const soaInvoice = soaRow[invoiceIndexSOA];
                     const match = report.slice(1).find(reportRow => reportRow[invoiceIndexReport] === soaInvoice);
 
@@ -175,23 +193,41 @@
                             status: match[statusIndexReport] || "Matched",
                             invoice: soaInvoice,
                             dueDate: soaRow[dueDateIndexSOA],
-                            paymentAmount: match[paymentAmountIndexReport]
+                            paymentAmount: match[invoiceIndexReport]
                         };
                     } else {
                         return { status: "Not Found", invoice: soaInvoice };
                     }
                 });
-
-                console.log("Resultado de la Reconciliación:", result);
-                generateReport(result);
             }
 
-            function generateReport(results) {
-                let matched = results.filter(r => r.status === "Matched").length;
-                let unmatched = results.filter(r => r.status === "Not Found").length;
+            downloadButton.addEventListener("click", () => {
+                const csvContent = generateCSV(reconciliationResults);
+                downloadCSV(csvContent, "reconciliation_report.csv");
+            });
 
-                alert(`Reconciliación completada: ${matched} coinciden, ${unmatched} no se encontraron.`);
-                console.log("Detalles del Reporte:", results);
+            function generateCSV(data) {
+                const headers = ["Invoice", "Status", "Due Date", "Payment Amount"];
+                const rows = data.map(row => [
+                    row.invoice,
+                    row.status,
+                    row.dueDate || "",
+                    row.paymentAmount || ""
+                ]);
+
+                return [headers, ...rows].map(e => e.join(",")).join("\n");
+            }
+
+            function downloadCSV(content, filename) {
+                const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                link.style.visibility = "hidden";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
             }
         });
     </script>
