@@ -76,38 +76,31 @@
     </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            console.log("Página cargada correctamente."); // Confirma que el script está corriendo
-
+        document.addEventListener("DOMContentLoaded", function () {
             const fileInput = document.getElementById("soaFile");
             const mappingDiv = document.getElementById("mapping");
             const mappingFieldsDiv = document.getElementById("mapping-fields");
             const previewDiv = document.getElementById("preview");
             const confirmMappingButton = document.getElementById("confirmMapping");
 
-            let headers = []; // Almacenará los encabezados del archivo
-
-            if (!fileInput) {
-                console.error("No se encontró el elemento con id 'soaFile'.");
-                return;
-            }
+            let headers = []; // Almacena los encabezados del archivo
 
             fileInput.addEventListener("change", handleFile);
 
             function handleFile(event) {
                 const file = event.target.files[0];
                 if (!file) {
-                    console.warn("No se seleccionó ningún archivo.");
+                    alert("Por favor selecciona un archivo.");
                     return;
                 }
 
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = function (e) {
                     const content = e.target.result;
-                    const rows = content.split("\n");
+                    const rows = content.split("\n").map(row => row.trim());
                     const delimiter = detectDelimiter(content);
 
-                    headers = rows[0].split(delimiter).map(cleanData); // Extrae los encabezados
+                    headers = rows[0].split(delimiter).map(cleanData);
                     displayPreview(rows, delimiter);
                     showMappingOptions(headers);
                 };
@@ -116,8 +109,12 @@
 
             function detectDelimiter(content) {
                 const delimiters = [',', '\t', ';'];
-                const counts = delimiters.map(delimiter => content.split(delimiter).length);
+                const counts = delimiters.map(delim => content.split(delim).length);
                 return delimiters[counts.indexOf(Math.max(...counts))];
+            }
+
+            function cleanData(value) {
+                return value.replace(/^["']|["']$/g, "").trim(); // Elimina comillas y espacios
             }
 
             function displayPreview(rows, delimiter) {
@@ -127,20 +124,18 @@
                 }
 
                 let tableHtml = "<table><thead><tr>";
-                headers = rows[0].split(delimiter).map(cleanData);
-
                 headers.forEach(header => {
                     tableHtml += `<th>${header}</th>`;
                 });
                 tableHtml += "</tr></thead><tbody>";
 
                 rows.slice(1, 6).forEach(row => {
-                    if (row.trim() === "") return; // Ignorar filas vacías
-                    const columns = row.split(delimiter);
+                    if (row.trim() === "") return;
+                    const columns = row.split(delimiter).map(cleanData);
 
                     tableHtml += "<tr>";
                     columns.forEach(column => {
-                        tableHtml += `<td>${cleanData(column)}</td>`;
+                        tableHtml += `<td>${column}</td>`;
                     });
                     tableHtml += "</tr>";
                 });
@@ -149,12 +144,8 @@
                 previewDiv.innerHTML = tableHtml;
             }
 
-            function cleanData(value) {
-                return value.replace(/^["']|["']$/g, "").trim(); // Elimina comillas y espacios
-            }
-
             function showMappingOptions(headers) {
-                mappingFieldsDiv.innerHTML = ""; // Limpia el área de mapeo
+                mappingFieldsDiv.innerHTML = ""; // Limpia las opciones
 
                 const fields = [
                     { id: "invoiceNumber", name: "Invoice Number" },
@@ -164,6 +155,9 @@
                 ];
 
                 fields.forEach(field => {
+                    const label = document.createElement("label");
+                    label.style.display = "block";
+
                     const select = document.createElement("select");
                     select.id = field.id;
                     headers.forEach(header => {
@@ -173,11 +167,8 @@
                         select.appendChild(option);
                     });
 
-                    const label = document.createElement("label");
-                    label.textContent = field.name;
-                    label.style.display = "block";
+                    label.textContent = `${field.name}: `;
                     label.appendChild(select);
-
                     mappingFieldsDiv.appendChild(label);
                 });
 
