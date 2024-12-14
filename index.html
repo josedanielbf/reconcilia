@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reconcise Test</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+    </style>
 </head>
 <body>
     <h1>Reconcise Test Page</h1>
@@ -16,28 +31,52 @@
     <div id="preview"></div>
 
     <script>
-        console.log("El script JavaScript está funcionando.");
+        document.getElementById("soaFile").addEventListener("change", handleFile);
 
-        // Listener básico para manejar el archivo
-        document.getElementById("soaFile").addEventListener("change", function(event) {
+        function handleFile(event) {
             const file = event.target.files[0];
             if (file) {
-                console.log("Archivo seleccionado:", file.name);
                 const reader = new FileReader();
-                reader.onload = function(e) {
-                    console.log("Contenido del archivo cargado:");
-                    console.log(e.target.result.slice(0, 100)); // Muestra los primeros 100 caracteres
-                    document.getElementById("preview").innerText = "Archivo cargado exitosamente.";
+                reader.onload = function (e) {
+                    const text = e.target.result;
+                    displayPreview(text); // Mostrar los datos en la tabla
                 };
-                reader.onerror = function() {
-                    console.error("Error al leer el archivo.");
+                reader.onerror = function () {
                     document.getElementById("preview").innerText = "Error al cargar el archivo.";
                 };
                 reader.readAsText(file);
             } else {
-                console.warn("No se seleccionó ningún archivo.");
+                document.getElementById("preview").innerText = "No se seleccionó ningún archivo.";
             }
-        });
+        }
+
+        function displayPreview(content) {
+            const previewDiv = document.getElementById("preview");
+            const rows = content.split("\n").slice(0, 5); // Primeras 5 filas para previsualización
+            if (rows.length < 2) {
+                previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
+                return;
+            }
+
+            let tableHtml = "<table><thead><tr>";
+            const headers = rows[0].split(","); // Usar comas como delimitador
+            headers.forEach(header => {
+                tableHtml += `<th>${header.trim()}</th>`;
+            });
+            tableHtml += "</tr></thead><tbody>";
+
+            rows.slice(1).forEach(row => {
+                const columns = row.split(",");
+                tableHtml += "<tr>";
+                columns.forEach(column => {
+                    tableHtml += `<td>${column.trim()}</td>`;
+                });
+                tableHtml += "</tr>";
+            });
+
+            tableHtml += "</tbody></table>";
+            previewDiv.innerHTML = tableHtml;
+        }
     </script>
 </body>
 </html>
