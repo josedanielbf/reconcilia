@@ -30,14 +30,14 @@
         let tableHtml = `<h3>Preview (${fileType})</h3><table><thead><tr>`;
 
         // Dividir las columnas de la primera fila para crear los encabezados
-        const headers = rows[0].split(delimiter);
+        const headers = rows[0].split(delimiter).map(cleanText);
         headers.forEach(header => {
             tableHtml += `<th>${header}</th>`;
         });
 
         tableHtml += `</tr></thead><tbody>`;
         rows.slice(1).forEach(row => {
-            const columns = row.split(delimiter);
+            const columns = row.split(delimiter).map(cleanText);
             tableHtml += `<tr>`;
             columns.forEach(column => {
                 tableHtml += `<td>${column}</td>`;
@@ -47,5 +47,10 @@
 
         tableHtml += `</tbody></table>`;
         previewDiv.innerHTML = tableHtml;
+    }
+
+    function cleanText(text) {
+        // Remover comillas y espacios en exceso
+        return text.replace(/^"|"$/g, "").trim();
     }
 </script>
