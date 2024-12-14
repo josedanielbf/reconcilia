@@ -18,7 +18,7 @@
         p {
             text-align: center;
         }
-        #preview {
+        #preview, #mapping {
             margin-top: 20px;
             text-align: center;
         }
@@ -44,6 +44,23 @@
             color: red;
             background-color: #ffe6e6;
         }
+        select {
+            margin: 5px;
+            padding: 8px;
+            font-size: 14px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -55,29 +72,25 @@
     </div>
 
     <div id="preview"></div>
+    <div id="mapping" style="display: none;">
+        <h3>Mapea las columnas clave:</h3>
+        <p>Selecciona qué columna corresponde a cada campo:</p>
+        <div id="mapping-fields"></div>
+        <button id="confirmMapping">Confirmar Mapeo</button>
+    </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const fileInput = document.getElementById("soaFile");
             const previewDiv = document.getElementById("preview");
+            const mappingDiv = document.getElementById("mapping");
+            const mappingFieldsDiv = document.getElementById("mapping-fields");
+            const confirmMappingButton = document.getElementById("confirmMapping");
+
+            let headers = []; // Encabezados del archivo
+            let rows = []; // Datos del archivo
 
             fileInput.addEventListener("change", handleFile);
-
-            const config = {
-                "Memo": {
-                    multipleValues: true, // Detecta y maneja múltiples valores
-                },
-                "Amount (Foreign Currency)": {
-                    numeric: true, // Normaliza valores numéricos
-                    currency: true, // Maneja el formato de moneda
-                },
-                "Date": {
-                    date: true // Normaliza fechas
-                },
-                "Due Date/Receive By": {
-                    date: true // Normaliza fechas
-                }
-            };
 
             function handleFile(event) {
                 const file = event.target.files[0];
@@ -89,38 +102,29 @@
                 const reader = new FileReader();
                 reader.onload = function (e) {
                     const content = e.target.result;
-                    const rows = parseCSV(content);
+                    const delimiter = detectDelimiter(content);
+
+                    rows = content.split("\n").map(row => row.split(delimiter).map(cleanData));
+                    headers = rows[0]; // Encabezados en la primera fila
+
+                    // Limpieza avanzada para "Memo" y otras columnas específicas
+                    rows = rows.map((row, index) => {
+                        if (index === 0) return row; // Encabezados
+                        return row.map((value, colIndex) => {
+                            const columnName = headers[colIndex];
+                            return cleanColumn(value, columnName);
+                        });
+                    });
+
                     displayPreview(rows);
+                    showMappingOptions(headers);
                 };
                 reader.readAsText(file);
             }
 
-            function parseCSV(content) {
-                const rows = [];
-                const lines = content.split("\n").map(line => line.trim());
-                const delimiter = detectDelimiter(lines[0]);
-
-                lines.forEach((line, index) => {
-                    let columns = line.split(delimiter).map(cleanData);
-
-                    if (index === 0) {
-                        // Encabezados
-                        rows.push(columns);
-                    } else {
-                        // Datos con limpieza específica
-                        rows.push(columns.map((cell, colIndex) => {
-                            const header = rows[0][colIndex];
-                            return cleanColumn(cell, config[header]);
-                        }));
-                    }
-                });
-
-                return rows;
-            }
-
-            function detectDelimiter(line) {
+            function detectDelimiter(content) {
                 const delimiters = [',', '\t', ';'];
-                const counts = delimiters.map(delim => line.split(delim).length);
+                const counts = delimiters.map(delim => content.split(delim).length);
                 return delimiters[counts.indexOf(Math.max(...counts))];
             }
 
@@ -128,29 +132,26 @@
                 return value.replace(/^["']|["']$/g, "").trim(); // Limpia comillas y espacios
             }
 
-            function cleanColumn(value, rules = {}) {
+            function cleanColumn(value, columnName) {
                 if (!value) return "";
 
-                // Múltiples valores
-                if (rules.multipleValues && value.includes(",")) {
-                    const items = value.split(",").map(item => item.trim());
-                    return items.length > 1 ? `Multiple (${items.length})` : items[0];
+                if (columnName === "Memo") {
+                    // Divide valores múltiples y retorna como una lista separada
+                    return value.includes(",") ? value.split(",").join("<br>") : value;
                 }
 
-                // Valores numéricos
-                if (rules.numeric) {
-                    value = value.replace(/[^\d.-]/g, ""); // Remueve símbolos extra
-                    return parseFloat(value).toLocaleString("en-US");
+                if (columnName === "Amount (Foreign Currency)") {
+                    // Limpia valores numéricos y convierte a formato estándar
+                    return value.replace(/[^\d.-]/g, ""); // Remueve símbolos no numéricos
                 }
 
-                // Fechas
-                if (rules.date) {
+                if (columnName === "Date" || columnName === "Due Date/Receive By") {
+                    // Formatea fechas
                     const date = new Date(value);
-                    return !isNaN(date) ? date.toLocaleDateString("en-US") : "Invalid Date";
+                    return isNaN(date) ? "Invalid Date" : date.toLocaleDateString("en-US");
                 }
 
-                // Sin reglas específicas, retorna el valor limpio
-                return value;
+                return value; // Retorna el valor limpio
             }
 
             function displayPreview(rows) {
@@ -160,7 +161,7 @@
                 }
 
                 let tableHtml = "<table><thead><tr>";
-                rows[0].forEach(header => {
+                headers.forEach(header => {
                     tableHtml += `<th>${header}</th>`;
                 });
                 tableHtml += "</tr></thead><tbody>";
@@ -168,8 +169,7 @@
                 rows.slice(1).forEach(row => {
                     tableHtml += "<tr>";
                     row.forEach(cell => {
-                        const isProblem = cell.includes("Invalid") || cell.includes("Multiple");
-                        tableHtml += `<td class="${isProblem ? "problem" : ""}">${cell}</td>`;
+                        tableHtml += `<td>${cell}</td>`;
                     });
                     tableHtml += "</tr>";
                 });
@@ -177,6 +177,49 @@
                 tableHtml += "</tbody></table>";
                 previewDiv.innerHTML = tableHtml;
             }
+
+            function showMappingOptions(headers) {
+                mappingFieldsDiv.innerHTML = ""; // Limpia las opciones
+
+                const fields = [
+                    { id: "invoiceNumber", name: "Invoice Number" },
+                    { id: "amount", name: "Amount" },
+                    { id: "dueDate", name: "Due Date" },
+                    { id: "status", name: "Status" }
+                ];
+
+                fields.forEach(field => {
+                    const label = document.createElement("label");
+                    label.style.display = "block";
+
+                    const select = document.createElement("select");
+                    select.id = field.id;
+                    headers.forEach(header => {
+                        const option = document.createElement("option");
+                        option.value = header;
+                        option.textContent = header;
+                        select.appendChild(option);
+                    });
+
+                    label.textContent = `${field.name}: `;
+                    label.appendChild(select);
+                    mappingFieldsDiv.appendChild(label);
+                });
+
+                mappingDiv.style.display = "block";
+            }
+
+            confirmMappingButton.addEventListener("click", () => {
+                const mappings = {
+                    invoiceNumber: document.getElementById("invoiceNumber").value,
+                    amount: document.getElementById("amount").value,
+                    dueDate: document.getElementById("dueDate").value,
+                    status: document.getElementById("status").value
+                };
+
+                console.log("Mapeo confirmado:", mappings);
+                alert("Mapeo de columnas confirmado. Puedes continuar.");
+            });
         });
     </script>
 </body>
