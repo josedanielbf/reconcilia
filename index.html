@@ -1,20 +1,12 @@
-<script>
-    document.getElementById("soaFile").addEventListener("change", handleFile);
-
-    function handleFile(event) {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const text = e.target.result;
-                alert("El archivo fue leído con éxito. Contenido inicial: " + text.slice(0, 100)); // Mostrar los primeros 100 caracteres
-            };
-            reader.onerror = function () {
-                alert("Ocurrió un error al leer el archivo.");
-            };
-            reader.readAsText(file);
-        } else {
-            alert("No se seleccionó ningún archivo.");
-        }
-    }
-</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconcise Test</title>
+</head>
+<body>
+    <h1>Reconcise Test Page</h1>
+    <p>Si ves este texto, la página se está cargando correctamente.</p>
+</body>
+</html>
