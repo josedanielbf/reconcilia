@@ -66,6 +66,18 @@
         input[type="file"] {
             margin: 10px 0;
         }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
     </style>
 </head>
 <body>
@@ -83,8 +95,9 @@
         <div class="step active" id="step1">
             <h2>Step 1: Upload Files</h2>
             <p>Upload the SOA and NetSuite files to begin.</p>
-            <input type="file" id="soaFile" />
-            <input type="file" id="netsuiteFile" />
+            <input type="file" id="soaFile" accept=".csv, .xlsx" />
+            <input type="file" id="netsuiteFile" accept=".csv, .xlsx" />
+            <div id="preview"></div>
         </div>
 
         <div class="step" id="step2">
@@ -140,6 +153,47 @@
         function updateButtons() {
             document.getElementById("prevBtn").disabled = currentStep === 0;
             document.getElementById("nextBtn").disabled = currentStep === steps.length - 1;
+        }
+
+        // File reading and preview logic
+        document.getElementById("soaFile").addEventListener("change", handleFile);
+        document.getElementById("netsuiteFile").addEventListener("change", handleFile);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    displayPreview(text, event.target.id);
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function displayPreview(content, fileType) {
+            const previewDiv = document.getElementById("preview");
+            const rows = content.split("\\n").slice(0, 5); // Preview first 5 rows
+            let tableHtml = `<h3>Preview (${fileType})</h3><table><thead><tr>`;
+
+            // Assuming CSV format, split the first row for headers
+            const headers = rows[0].split(",");
+            headers.forEach(header => {
+                tableHtml += `<th>${header}</th>`;
+            });
+
+            tableHtml += `</tr></thead><tbody>`;
+            rows.slice(1).forEach(row => {
+                const columns = row.split(",");
+                tableHtml += `<tr>`;
+                columns.forEach(column => {
+                    tableHtml += `<td>${column}</td>`;
+                });
+                tableHtml += `</tr>`;
+            });
+
+            tableHtml += `</tbody></table>`;
+            previewDiv.innerHTML = tableHtml;
         }
     </script>
 </body>
