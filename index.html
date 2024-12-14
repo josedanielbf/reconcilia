@@ -1,71 +1,43 @@
-<script>
-    document.getElementById("soaFile").addEventListener("change", handleFile);
-    document.getElementById("netsuiteFile").addEventListener("change", handleFile);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconcise Test</title>
+</head>
+<body>
+    <h1>Reconcise Test Page</h1>
+    <p>Si ves este texto, la página se está cargando correctamente.</p>
 
-    function handleFile(event) {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const text = e.target.result;
-                if (!text) {
-                    alert("El archivo está vacío o no se puede leer.");
-                    return;
-                }
-                const delimiter = detectDelimiter(text); // Detectar delimitador
-                displayPreview(text, event.target.id, delimiter);
-            };
-            reader.readAsText(file);
-        } else {
-            alert("No se seleccionó ningún archivo.");
-        }
-    }
+    <!-- Botón para subir archivos -->
+    <input type="file" id="soaFile" />
 
-    function detectDelimiter(content) {
-        // Detectar si el delimitador es una coma, tabulación u otro
-        const delimiters = [',', '\t', ';'];
-        const lines = content.split('\n');
-        const counts = delimiters.map(delimiter => lines[0]?.split(delimiter).length || 0);
-        const maxIndex = counts.indexOf(Math.max(...counts));
-        return delimiters[maxIndex] || ','; // Predeterminar ',' si no detecta delimitador
-    }
+    <!-- Área de previsualización -->
+    <div id="preview"></div>
 
-    function displayPreview(content, fileType, delimiter) {
-        const previewDiv = document.getElementById("preview");
-        if (!content || !delimiter) {
-            previewDiv.innerHTML = "<p>No se pudo previsualizar el archivo.</p>";
-            return;
-        }
+    <script>
+        console.log("El script JavaScript está funcionando.");
 
-        const rows = content.split("\n").slice(0, 5); // Previsualizar primeras 5 filas
-        if (rows.length < 2) {
-            previewDiv.innerHTML = "<p>El archivo no contiene datos suficientes.</p>";
-            return;
-        }
-
-        let tableHtml = `<h3>Preview (${fileType})</h3><table><thead><tr>`;
-        const headers = rows[0].split(delimiter).map(cleanText);
-
-        headers.forEach(header => {
-            tableHtml += `<th>${header}</th>`;
+        // Listener básico para manejar el archivo
+        document.getElementById("soaFile").addEventListener("change", function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                console.log("Archivo seleccionado:", file.name);
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    console.log("Contenido del archivo cargado:");
+                    console.log(e.target.result.slice(0, 100)); // Muestra los primeros 100 caracteres
+                    document.getElementById("preview").innerText = "Archivo cargado exitosamente.";
+                };
+                reader.onerror = function() {
+                    console.error("Error al leer el archivo.");
+                    document.getElementById("preview").innerText = "Error al cargar el archivo.";
+                };
+                reader.readAsText(file);
+            } else {
+                console.warn("No se seleccionó ningún archivo.");
+            }
         });
-
-        tableHtml += `</tr></thead><tbody>`;
-        rows.slice(1).forEach(row => {
-            const columns = row.split(delimiter).map(cleanText);
-            tableHtml += `<tr>`;
-            columns.forEach(column => {
-                tableHtml += `<td>${column}</td>`;
-            });
-            tableHtml += `</tr>`;
-        });
-
-        tableHtml += `</tbody></table>`;
-        previewDiv.innerHTML = tableHtml;
-    }
-
-    function cleanText(text) {
-        // Remover comillas y espacios en exceso
-        return text.replace(/^"|"$/g, "").trim();
-    }
-</script>
+    </script>
+</body>
+</html>
