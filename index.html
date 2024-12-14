@@ -1,69 +1,34 @@
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        document.getElementById("soaFile").addEventListener("change", handleFile);
+<body>
+    <h1>Reconcise</h1>
+    <p>Sube un archivo para comenzar:</p>
 
-        let headers = []; // Encabezados del archivo
-        let selectedColumns = {}; // Columnas seleccionadas por el usuario
+    <!-- Botón para subir archivo -->
+    <input type="file" id="soaFile" />
+    <!-- Área para la previsualización -->
+    <div id="preview"></div>
 
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const text = e.target.result;
-                    const delimiter = detectDelimiter(text); // Detectar delimitador
-                    headers = text.split("\n")[0].split(delimiter).map(cleanText); // Obtener encabezados
-                    displayMappingOptions(); // Mostrar opciones de mapeo
-                };
-                reader.onerror = function () {
-                    document.getElementById("preview").innerText = "Error al cargar el archivo.";
-                };
-                reader.readAsText(file);
+    <!-- El script debe ir justo antes de cerrar el body -->
+    <script>
+        // Espera a que el DOM esté listo
+        document.addEventListener("DOMContentLoaded", function() {
+            // Encuentra el botón de carga por su ID y agrega un listener
+            const fileInput = document.getElementById("soaFile");
+            if (fileInput) {
+                fileInput.addEventListener("change", handleFile);
             } else {
-                document.getElementById("preview").innerText = "No se seleccionó ningún archivo.";
+                console.error("No se encontró el elemento con id 'soaFile'");
             }
-        }
 
-        function detectDelimiter(content) {
-            const delimiters = [',', '\t', ';'];
-            const lines = content.split('\n');
-            const counts = delimiters.map(delimiter => lines[0]?.split(delimiter).length || 0);
-            const maxIndex = counts.indexOf(Math.max(...counts));
-            return delimiters[maxIndex] || ',';
-        }
-
-        function cleanText(text) {
-            return text.replace(/^"|"$/g, "").trim();
-        }
-
-        function displayMappingOptions() {
-            const previewDiv = document.getElementById("preview");
-            previewDiv.innerHTML = "<h3>Map Columns</h3>";
-
-            const columnsToMap = ["Invoice Number", "Balance", "Due Date", "Payment Date"];
-            columnsToMap.forEach(column => {
-                let dropdownHtml = `<label>${column}:</label> <select id="${column.replace(/\s+/g, '')}">`;
-                headers.forEach(header => {
-                    dropdownHtml += `<option value="${header}">${header}</option>`;
-                });
-                dropdownHtml += "</select><br>";
-                previewDiv.innerHTML += dropdownHtml;
-            });
-
-            previewDiv.innerHTML += `<button id="saveMapping">Save Mapping</button>`;
-
-            document.getElementById("saveMapping").addEventListener("click", saveMapping);
-        }
-
-        function saveMapping() {
-            selectedColumns = {
-                InvoiceNumber: document.getElementById("InvoiceNumber").value,
-                Balance: document.getElementById("Balance").value,
-                DueDate: document.getElementById("DueDate").value,
-                PaymentDate: document.getElementById("PaymentDate").value
-            };
-            console.log("Mapping Saved:", selectedColumns);
-            document.getElementById("preview").innerHTML = `<p>Mapping saved successfully!</p>`;
-        }
-    });
-</script>
+            // Función para manejar la carga del archivo
+            function handleFile(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    console.log("Archivo seleccionado:", file.name);
+                    document.getElementById("preview").innerText = `Archivo seleccionado: ${file.name}`;
+                } else {
+                    console.warn("No se seleccionó ningún archivo.");
+                }
+            }
+        });
+    </script>
+</body>
