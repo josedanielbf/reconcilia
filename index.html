@@ -25,16 +25,20 @@
         table {
             margin: 0 auto;
             border-collapse: collapse;
-            width: 80%;
+            width: 90%;
         }
         th, td {
             border: 1px solid #ccc;
-            padding: 8px;
+            padding: 10px;
             text-align: left;
+            white-space: nowrap;
         }
         th {
             background-color: #007bff;
             color: white;
+        }
+        td {
+            background-color: #f9f9f9;
         }
     </style>
 </head>
@@ -51,6 +55,7 @@
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             const fileInput = document.getElementById("soaFile");
+
             if (!fileInput) {
                 console.error("No se encontró el elemento con id 'soaFile'.");
                 return;
@@ -93,21 +98,27 @@
                 const headers = rows[0].split(delimiter);
 
                 headers.forEach(header => {
-                    tableHtml += `<th>${header.trim()}</th>`;
+                    tableHtml += `<th>${cleanData(header)}</th>`;
                 });
                 tableHtml += "</tr></thead><tbody>";
 
                 rows.slice(1, 6).forEach(row => {
+                    if (row.trim() === "") return; // Ignorar filas vacías
                     const columns = row.split(delimiter);
+
                     tableHtml += "<tr>";
                     columns.forEach(column => {
-                        tableHtml += `<td>${column.trim()}</td>`;
+                        tableHtml += `<td>${cleanData(column)}</td>`;
                     });
                     tableHtml += "</tr>";
                 });
 
                 tableHtml += "</tbody></table>";
                 previewDiv.innerHTML = tableHtml;
+            }
+
+            function cleanData(value) {
+                return value.replace(/^"|"$/g, "").trim(); // Elimina comillas al inicio y final
             }
         });
     </script>
