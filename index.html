@@ -40,18 +40,6 @@
         td {
             background-color: #f9f9f9;
         }
-        button {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
     </style>
 </head>
 <body>
@@ -66,26 +54,20 @@
     </div>
 
     <div id="preview"></div>
-    <div style="text-align: center;">
-        <button id="downloadReport" style="display: none;">Descargar Reporte</button>
-    </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const soaFileInput = document.getElementById("soaFile");
             const reportFileInput = document.getElementById("reportFile");
             const previewDiv = document.getElementById("preview");
-            const downloadButton = document.getElementById("downloadReport");
+
+            soaFileInput.addEventListener("change", handleFile);
+            reportFileInput.addEventListener("change", handleFile);
 
             let files = {
                 soa: null,
                 report: null
             };
-
-            let reconciliationResults = [];
-
-            soaFileInput.addEventListener("change", handleFile);
-            reportFileInput.addEventListener("change", handleFile);
 
             function handleFile(event) {
                 const file = event.target.files[0];
@@ -97,25 +79,24 @@
                 const reader = new FileReader();
                 reader.onload = function (e) {
                     const content = e.target.result;
-                    const rows = parseCSV(content);
+                    const rows = parseAndCleanCSV(content, event.target.id === "soaFile");
 
                     if (event.target.id === "soaFile") {
-                        files.soa = cleanRows(rows);
-                        displayPreview("SOA", files.soa);
+                        files.soa = rows;
+                        displayPreview("SOA", rows);
                     } else {
-                        files.report = cleanRows(rows);
-                        displayPreview("Reporte", files.report);
+                        files.report = rows;
+                        displayPreview("Reporte", rows);
                     }
 
                     if (files.soa && files.report) {
-                        reconciliationResults = reconcile(files.soa, files.report);
-                        downloadButton.style.display = "block";
+                        reconcile(files.soa, files.report);
                     }
                 };
                 reader.readAsText(file);
             }
 
-            function parseCSV(content) {
+            function parseAndCleanCSV(content, isSOA) {
                 const rows = [];
                 const lines = content.split("\n");
 
@@ -130,30 +111,36 @@
                         if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
                             insideQuotes = !insideQuotes;
                         } else if (char === ',' && !insideQuotes) {
-                            cells.push(currentCell.trim());
+                            cells.push(cleanData(currentCell, isSOA));
                             currentCell = '';
                         } else {
                             currentCell += char;
                         }
                     }
 
-                    cells.push(currentCell.trim());
-                    rows.push(cells);
+                    cells.push(cleanData(currentCell, isSOA));
+
+                    if (cells.some(cell => cell !== "")) {
+                        rows.push(cells);
+                    }
                 });
 
                 return rows;
             }
 
-            function cleanRows(rows) {
-                return rows.map(row => row.map(cell => cleanData(cell)));
-            }
+            function cleanData(value, isSOA) {
+                let cleaned = value
+                    .replace(/^\s+|\s+$/g, "") // Eliminar espacios al inicio y final
+                    .replace(/^"|"$/g, "") // Eliminar comillas iniciales y finales
+                    .replace(/\s+/g, " ") // Reemplazar espacios múltiples por uno
+                    .replace(/[^\w\s\.\,\-\/]/g, ""); // Eliminar caracteres especiales no deseados
 
-            function cleanData(value) {
-                return value
-                    .replace(/^["']|["']$/g, "") // Elimina comillas iniciales y finales
-                    .replace(/,/g, "")          // Elimina comas internas
-                    .replace(/\s+/g, " ")       // Normaliza los espacios
-                    .trim();                    // Elimina espacios al inicio y al final
+                // Si es el SOA, aplicar reglas adicionales para limpiar
+                if (isSOA) {
+                    cleaned = cleaned.replace(/(\r\n|\n|\r)/gm, ""); // Eliminar saltos de línea
+                }
+
+                return cleaned;
             }
 
             function displayPreview(type, rows) {
@@ -179,55 +166,22 @@
                 const soaHeaders = soa[0];
                 const reportHeaders = report[0];
 
-                const invoiceIndexSOA = soaHeaders.indexOf("Invoice Number");
+                const invoiceIndexSOA = soaHeaders.indexOf("Reference");
                 const invoiceIndexReport = reportHeaders.indexOf("Invoice Number");
-                const statusIndexReport = reportHeaders.indexOf("Status");
-                const dueDateIndexSOA = soaHeaders.indexOf("Due Date");
 
-                return soa.slice(1).map(soaRow => {
+                const result = soa.slice(1).map(soaRow => {
                     const soaInvoice = soaRow[invoiceIndexSOA];
                     const match = report.slice(1).find(reportRow => reportRow[invoiceIndexReport] === soaInvoice);
 
                     if (match) {
-                        return {
-                            status: match[statusIndexReport] || "Matched",
-                            invoice: soaInvoice,
-                            dueDate: soaRow[dueDateIndexSOA],
-                            paymentAmount: match[invoiceIndexReport]
-                        };
+                        return { status: "Matched", soa: soaRow, report: match };
                     } else {
-                        return { status: "Not Found", invoice: soaInvoice };
+                        return { status: "Not Found", soa: soaRow, report: null };
                     }
                 });
-            }
 
-            downloadButton.addEventListener("click", () => {
-                const csvContent = generateCSV(reconciliationResults);
-                downloadCSV(csvContent, "reconciliation_report.csv");
-            });
-
-            function generateCSV(data) {
-                const headers = ["Invoice", "Status", "Due Date", "Payment Amount"];
-                const rows = data.map(row => [
-                    row.invoice,
-                    row.status,
-                    row.dueDate || "",
-                    row.paymentAmount || ""
-                ]);
-
-                return [headers, ...rows].map(e => e.join(",")).join("\n");
-            }
-
-            function downloadCSV(content, filename) {
-                const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-                const link = document.createElement("a");
-                const url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
-                link.setAttribute("download", filename);
-                link.style.visibility = "hidden";
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                console.log("Resultado de la Reconciliación:", result);
+                alert(`Reconciliación completada: ${result.filter(r => r.status === "Matched").length} coinciden, ${result.filter(r => r.status === "Not Found").length} no se encontraron.`);
             }
         });
     </script>
