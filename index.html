@@ -1,6 +1,5 @@
 <script>
     document.getElementById("soaFile").addEventListener("change", handleFile);
-    document.getElementById("netsuiteFile").addEventListener("change", handleFile);
 
     function handleFile(event) {
         const file = event.target.files[0];
@@ -8,64 +7,14 @@
             const reader = new FileReader();
             reader.onload = function (e) {
                 const text = e.target.result;
-                if (!text) {
-                    alert("El archivo está vacío o no se puede leer.");
-                    return;
-                }
-                const delimiter = detectDelimiter(text); // Detectar delimitador
-                displayPreview(text, event.target.id, delimiter);
+                alert("El archivo fue leído con éxito. Contenido inicial: " + text.slice(0, 100)); // Mostrar los primeros 100 caracteres
+            };
+            reader.onerror = function () {
+                alert("Ocurrió un error al leer el archivo.");
             };
             reader.readAsText(file);
         } else {
             alert("No se seleccionó ningún archivo.");
         }
-    }
-
-    function detectDelimiter(content) {
-        // Detectar si el delimitador es una coma, tabulación u otro
-        const delimiters = [',', '\t', ';'];
-        const lines = content.split('\n');
-        const counts = delimiters.map(delimiter => lines[0]?.split(delimiter).length || 0);
-        const maxIndex = counts.indexOf(Math.max(...counts));
-        return delimiters[maxIndex] || ','; // Predeterminar ',' si no detecta delimitador
-    }
-
-    function displayPreview(content, fileType, delimiter) {
-        const previewDiv = document.getElementById("preview");
-        if (!content || !delimiter) {
-            previewDiv.innerHTML = "<p>No se pudo previsualizar el archivo.</p>";
-            return;
-        }
-
-        const rows = content.split("\n").slice(0, 5); // Previsualizar primeras 5 filas
-        if (rows.length < 2) {
-            previewDiv.innerHTML = "<p>El archivo no contiene datos suficientes.</p>";
-            return;
-        }
-
-        let tableHtml = `<h3>Preview (${fileType})</h3><table><thead><tr>`;
-        const headers = rows[0].split(delimiter).map(cleanText);
-
-        headers.forEach(header => {
-            tableHtml += `<th>${header}</th>`;
-        });
-
-        tableHtml += `</tr></thead><tbody>`;
-        rows.slice(1).forEach(row => {
-            const columns = row.split(delimiter).map(cleanText);
-            tableHtml += `<tr>`;
-            columns.forEach(column => {
-                tableHtml += `<td>${column}</td>`;
-            });
-            tableHtml += `</tr>`;
-        });
-
-        tableHtml += `</tbody></table>`;
-        previewDiv.innerHTML = tableHtml;
-    }
-
-    function cleanText(text) {
-        // Remover comillas y espacios en exceso
-        return text.replace(/^"|"$/g, "").trim();
     }
 </script>
