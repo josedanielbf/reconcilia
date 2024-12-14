@@ -18,7 +18,7 @@
         p {
             text-align: center;
         }
-        #preview {
+        #preview, #results {
             margin-top: 20px;
             text-align: center;
         }
@@ -40,29 +40,57 @@
         td {
             background-color: #f9f9f9;
         }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
     <h1>Reconcise</h1>
-    <p>Sube un archivo para comenzar:</p>
+    <p>Sube los documentos (SOA y Reporte) para comenzar la reconciliación:</p>
 
     <div style="text-align: center;">
-        <input type="file" id="soaFile" />
+        <label>SOA del Vendor:</label>
+        <input type="file" id="soaFile" /><br><br>
+        <label>Reporte (e.g., NetSuite):</label>
+        <input type="file" id="reportFile" />
     </div>
 
     <div id="preview"></div>
+    <div id="results"></div>
+
+    <button id="downloadResults" style="display: none;">Descargar Resultados</button>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const fileInput = document.getElementById("soaFile");
+            const soaFileInput = document.getElementById("soaFile");
+            const reportFileInput = document.getElementById("reportFile");
             const previewDiv = document.getElementById("preview");
+            const resultsDiv = document.getElementById("results");
+            const downloadButton = document.getElementById("downloadResults");
 
-            fileInput.addEventListener("change", handleFile);
+            let files = {
+                soa: null,
+                report: null,
+                results: []
+            };
+
+            soaFileInput.addEventListener("change", handleFile);
+            reportFileInput.addEventListener("change", handleFile);
 
             function handleFile(event) {
                 const file = event.target.files[0];
                 if (!file) {
-                    alert("Por favor selecciona un archivo.");
+                    alert("Por favor selecciona un archivo válido.");
                     return;
                 }
 
@@ -71,7 +99,17 @@
                     const content = e.target.result;
                     const rows = parseCSV(content);
 
-                    displayPreview(rows);
+                    if (event.target.id === "soaFile") {
+                        files.soa = rows;
+                        displayPreview("SOA", rows);
+                    } else {
+                        files.report = rows;
+                        displayPreview("Reporte", rows);
+                    }
+
+                    if (files.soa && files.report) {
+                        reconcile(files.soa, files.report);
+                    }
                 };
                 reader.readAsText(file);
             }
@@ -81,7 +119,6 @@
                 const lines = content.split("\n");
 
                 lines.forEach(line => {
-                    // Procesa cada línea respetando las comillas dobles
                     const cells = [];
                     let currentCell = '';
                     let insideQuotes = false;
@@ -99,29 +136,21 @@
                         }
                     }
 
-                    cells.push(currentCell.trim()); // Agrega la última celda
+                    cells.push(currentCell.trim());
                     rows.push(cells);
                 });
 
                 return rows;
             }
 
-            function displayPreview(rows) {
-                if (rows.length < 2) {
-                    previewDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
-                    return;
-                }
-
-                const headers = rows[0];
-                const dataRows = rows.slice(1);
-
-                let tableHtml = "<table><thead><tr>";
-                headers.forEach(header => {
+            function displayPreview(type, rows) {
+                let tableHtml = `<h3>${type}</h3><table><thead><tr>`;
+                rows[0].forEach(header => {
                     tableHtml += `<th>${header}</th>`;
                 });
                 tableHtml += "</tr></thead><tbody>";
 
-                dataRows.forEach(row => {
+                rows.slice(1, 6).forEach(row => {
                     tableHtml += "<tr>";
                     row.forEach(cell => {
                         tableHtml += `<td>${cell}</td>`;
@@ -130,8 +159,71 @@
                 });
 
                 tableHtml += "</tbody></table>";
-                previewDiv.innerHTML = tableHtml;
+                previewDiv.innerHTML += tableHtml;
             }
+
+            function reconcile(soa, report) {
+                const soaHeaders = soa[0];
+                const reportHeaders = report[0];
+
+                const invoiceIndexSOA = soaHeaders.indexOf("Invoice Number");
+                const dueDateIndexSOA = soaHeaders.indexOf("Due Date");
+
+                const invoiceIndexReport = reportHeaders.indexOf("Invoice Number");
+                const amountIndexReport = reportHeaders.indexOf("Payment Amount");
+
+                const results = soa.slice(1).map(soaRow => {
+                    const soaInvoice = soaRow[invoiceIndexSOA];
+                    const soaDueDate = soaRow[dueDateIndexSOA];
+                    const match = report.slice(1).find(reportRow => reportRow[invoiceIndexReport] === soaInvoice);
+
+                    if (match) {
+                        return {
+                            status: "Matched",
+                            soa: soaRow,
+                            report: match
+                        };
+                    } else {
+                        return {
+                            status: "Not Found",
+                            soa: soaRow,
+                            report: null
+                        };
+                    }
+                });
+
+                files.results = results;
+                displayResults(results);
+            }
+
+            function displayResults(results) {
+                let tableHtml = `<h3>Resultados de la Reconciliación</h3><table><thead><tr><th>Estado</th><th>SOA</th><th>Reporte</th></tr></thead><tbody>`;
+
+                results.forEach(result => {
+                    tableHtml += `<tr>
+                        <td>${result.status}</td>
+                        <td>${result.soa.join(", ")}</td>
+                        <td>${result.report ? result.report.join(", ") : "N/A"}</td>
+                    </tr>`;
+                });
+
+                tableHtml += "</tbody></table>";
+                resultsDiv.innerHTML = tableHtml;
+                downloadButton.style.display = "block";
+            }
+
+            downloadButton.addEventListener("click", () => {
+                const csvContent = "data:text/csv;charset=utf-8," + files.results.map(result => {
+                    return [result.status, result.soa.join("; "), result.report ? result.report.join("; ") : ""].join(",");
+                }).join("\n");
+
+                const link = document.createElement("a");
+                link.setAttribute("href", encodeURI(csvContent));
+                link.setAttribute("download", "reconciliation_results.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
         });
     </script>
 </body>
