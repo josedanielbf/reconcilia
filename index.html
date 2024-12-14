@@ -18,17 +18,8 @@
         p {
             text-align: center;
         }
-        .file-input {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        #preview-container {
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-        }
-        .preview {
-            margin: 20px;
+        #preview, #mapping, #results {
+            margin-top: 20px;
             text-align: center;
         }
         table {
@@ -49,6 +40,11 @@
         td {
             background-color: #f9f9f9;
         }
+        select {
+            margin: 5px;
+            padding: 8px;
+            font-size: 14px;
+        }
         button {
             margin-top: 20px;
             padding: 10px 20px;
@@ -65,38 +61,38 @@
 </head>
 <body>
     <h1>Reconcise</h1>
-    <p>Sube dos archivos para comenzar:</p>
+    <p>Sube tus archivos para comenzar:</p>
 
-    <div class="file-input">
-        <label for="soaFile">SOA del Vendor:</label>
-        <input type="file" id="soaFile" /><br><br>
-        <label for="netsuiteFile">Reporte de NetSuite:</label>
+    <div style="text-align: center;">
+        <input type="file" id="soaFile" />
         <input type="file" id="netsuiteFile" />
     </div>
 
-    <div id="preview-container">
-        <div id="preview-soa" class="preview">
-            <h3>Vista Previa del SOA</h3>
-            <div id="soaTable"></div>
-        </div>
-        <div id="preview-netsuite" class="preview">
-            <h3>Vista Previa del Reporte de NetSuite</h3>
-            <div id="netsuiteTable"></div>
-        </div>
+    <div id="preview"></div>
+    <div id="results" style="display: none;">
+        <h3>Resultado de la Reconciliación:</h3>
+        <div id="reconciliation-results"></div>
+        <button id="downloadResults">Descargar Resultados</button>
     </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const soaInput = document.getElementById("soaFile");
             const netsuiteInput = document.getElementById("netsuiteFile");
-            const soaTableDiv = document.getElementById("soaTable");
-            const netsuiteTableDiv = document.getElementById("netsuiteTable");
+            const previewDiv = document.getElementById("preview");
+            const resultsDiv = document.getElementById("results");
+            const reconciliationResultsDiv = document.getElementById("reconciliation-results");
+            const downloadResultsButton = document.getElementById("downloadResults");
 
-            soaInput.addEventListener("change", () => handleFile(soaInput, soaTableDiv));
-            netsuiteInput.addEventListener("change", () => handleFile(netsuiteInput, netsuiteTableDiv));
+            let soaData = [];
+            let netsuiteData = [];
+            let headers = [];
 
-            function handleFile(input, tableDiv) {
-                const file = input.files[0];
+            soaInput.addEventListener("change", handleFile.bind(null, "soa"));
+            netsuiteInput.addEventListener("change", handleFile.bind(null, "netsuite"));
+
+            function handleFile(type, event) {
+                const file = event.target.files[0];
                 if (!file) {
                     alert("Por favor selecciona un archivo.");
                     return;
@@ -107,9 +103,17 @@
                     const content = e.target.result;
                     const rows = content.split("\n").map(row => row.trim());
                     const delimiter = detectDelimiter(content);
+                    const data = rows.map(row => row.split(delimiter).map(cleanData));
 
-                    const headers = rows[0].split(delimiter).map(cleanData);
-                    displayTable(rows, headers, delimiter, tableDiv);
+                    if (type === "soa") {
+                        soaData = data;
+                    } else {
+                        netsuiteData = data;
+                    }
+
+                    if (soaData.length > 0 && netsuiteData.length > 0) {
+                        reconcileData();
+                    }
                 };
                 reader.readAsText(file);
             }
@@ -121,34 +125,90 @@
             }
 
             function cleanData(value) {
-                return value.replace(/^\"|\"$/g, "").trim();
+                return value.replace(/^"|"$/g, "").trim();
             }
 
-            function displayTable(rows, headers, delimiter, tableDiv) {
-                if (rows.length < 2) {
-                    tableDiv.innerHTML = "<p>El archivo no contiene suficientes datos.</p>";
-                    return;
-                }
+            function reconcileData() {
+                const soaHeaders = soaData[0];
+                const netsuiteHeaders = netsuiteData[0];
+                const soaRows = soaData.slice(1);
+                const netsuiteRows = netsuiteData.slice(1);
 
+                const reconciliationResults = soaRows.map(soaRow => {
+                    const invoiceNumber = soaRow[soaHeaders.indexOf("Invoice Number")];
+                    const netsuiteRow = netsuiteRows.find(row => row[netsuiteHeaders.indexOf("Invoice Number")] === invoiceNumber);
+
+                    if (!netsuiteRow) {
+                        return { ...mapRowToObject(soaHeaders, soaRow), Status: "Not Found" };
+                    }
+
+                    const soaAmount = parseFloat(soaRow[soaHeaders.indexOf("Amount")]);
+                    const netsuiteAmount = parseFloat(netsuiteRow[netsuiteHeaders.indexOf("Payment Amount")]);
+                    const netsuiteStatus = netsuiteRow[netsuiteHeaders.indexOf("Status")];
+
+                    if (netsuiteStatus === "Paid In Full" && soaAmount === netsuiteAmount) {
+                        return { ...mapRowToObject(soaHeaders, soaRow), Status: "Paid in Full" };
+                    } else if (netsuiteStatus === "Open") {
+                        return { ...mapRowToObject(soaHeaders, soaRow), Status: "Open" };
+                    } else if (soaAmount !== netsuiteAmount) {
+                        return { ...mapRowToObject(soaHeaders, soaRow), Status: "Disputed" };
+                    }
+
+                    return { ...mapRowToObject(soaHeaders, soaRow), Status: "Unmatched" };
+                });
+
+                displayResults(reconciliationResults);
+            }
+
+            function mapRowToObject(headers, row) {
+                const obj = {};
+                headers.forEach((header, index) => {
+                    obj[header] = row[index] || "";
+                });
+                return obj;
+            }
+
+            function displayResults(results) {
                 let tableHtml = "<table><thead><tr>";
+                const headers = Object.keys(results[0]);
+
                 headers.forEach(header => {
                     tableHtml += `<th>${header}</th>`;
                 });
                 tableHtml += "</tr></thead><tbody>";
 
-                rows.slice(1, 6).forEach(row => {
-                    if (row.trim() === "") return;
-                    const columns = row.split(delimiter).map(cleanData);
-
+                results.forEach(result => {
                     tableHtml += "<tr>";
-                    columns.forEach(column => {
-                        tableHtml += `<td>${column}</td>`;
+                    headers.forEach(header => {
+                        tableHtml += `<td>${result[header]}</td>`;
                     });
                     tableHtml += "</tr>";
                 });
 
                 tableHtml += "</tbody></table>";
-                tableDiv.innerHTML = tableHtml;
+                reconciliationResultsDiv.innerHTML = tableHtml;
+                resultsDiv.style.display = "block";
+
+                downloadResultsButton.addEventListener("click", () => {
+                    downloadCSV(results);
+                });
+            }
+
+            function downloadCSV(results) {
+                const headers = Object.keys(results[0]);
+                const rows = results.map(row => headers.map(header => row[header]));
+
+                const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+
+                link.setAttribute("href", url);
+                link.setAttribute("download", "reconciliation_results.csv");
+                link.style.visibility = "hidden";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
             }
         });
     </script>
