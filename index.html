@@ -1,200 +1,51 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>reconcilia prototype</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f9f9f9;
-        }
-        header {
-            background-color: #007bff;
-            color: white;
-            padding: 1em;
-            text-align: center;
-        }
-        .container {
-            margin: 20px auto;
-            max-width: 800px;
-            padding: 20px;
-            background: white;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-        }
-        .step {
-            display: none;
-        }
-        .step.active {
-            display: block;
-        }
-        .progress {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
-        .progress div {
-            flex: 1;
-            text-align: center;
-            padding: 10px;
-            border-radius: 5px;
-            background: #e0e0e0;
-        }
-        .progress .active {
-            background: #007bff;
-            color: white;
-        }
-        .buttons {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-        }
-        button {
-            padding: 10px 20px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button:disabled {
-            background: #ccc;
-        }
-        input[type="file"] {
-            margin: 10px 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        table, th, td {
-            border: 1px solid #ddd;
-        }
-        th, td {
-            padding: 10px;
-            text-align: left;
-        }
-    </style>
-</head>
-<body>
-    <header>
-        <h1>reconcilia prototype</h1>
-    </header>
-    <div class="container">
-        <div class="progress">
-            <div class="step-indicator active">Upload Files</div>
-            <div class="step-indicator">Map Columns</div>
-            <div class="step-indicator">Reconciliation</div>
-            <div class="step-indicator">Export</div>
-        </div>
+<script>
+    document.getElementById("soaFile").addEventListener("change", handleFile);
+    document.getElementById("netsuiteFile").addEventListener("change", handleFile);
 
-        <div class="step active" id="step1">
-            <h2>Step 1: Upload Files</h2>
-            <p>Upload the SOA and NetSuite files to begin.</p>
-            <input type="file" id="soaFile" accept=".csv, .xlsx" />
-            <input type="file" id="netsuiteFile" accept=".csv, .xlsx" />
-            <div id="preview"></div>
-        </div>
+    function handleFile(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const text = e.target.result;
+                const delimiter = detectDelimiter(text); // Detectar delimitador
+                displayPreview(text, event.target.id, delimiter);
+            };
+            reader.readAsText(file);
+        }
+    }
 
-        <div class="step" id="step2">
-            <h2>Step 2: Map Columns</h2>
-            <p>Confirm or adjust the mapping of columns for reconciliation.</p>
-            <p>Example: Invoice Number, Balance, Due Date, Payment Date.</p>
-        </div>
+    function detectDelimiter(content) {
+        // Detectar si el delimitador es una coma, tabulación u otro
+        const delimiters = [',', '\t', ';'];
+        const lines = content.split('\n');
+        const counts = delimiters.map(delimiter => lines[0].split(delimiter).length);
+        const maxIndex = counts.indexOf(Math.max(...counts));
+        return delimiters[maxIndex];
+    }
 
-        <div class="step" id="step3">
-            <h2>Step 3: Reconciliation</h2>
-            <p>Preview the reconciled data. Discrepancies are highlighted.</p>
-        </div>
+    function displayPreview(content, fileType, delimiter) {
+        const previewDiv = document.getElementById("preview");
+        const rows = content.split("\n").slice(0, 5); // Previsualizar primeras 5 filas
+        let tableHtml = `<h3>Preview (${fileType})</h3><table><thead><tr>`;
 
-        <div class="step" id="step4">
-            <h2>Step 4: Export</h2>
-            <p>Download the reconciled report and summary.</p>
-            <button>Download Report</button>
-        </div>
-
-        <div class="buttons">
-            <button id="prevBtn" disabled>Previous</button>
-            <button id="nextBtn">Next</button>
-        </div>
-    </div>
-
-    <script>
-        const steps = document.querySelectorAll(".step");
-        const progress = document.querySelectorAll(".progress .step-indicator");
-        let currentStep = 0;
-
-        document.getElementById("nextBtn").addEventListener("click", () => {
-            if (currentStep < steps.length - 1) {
-                steps[currentStep].classList.remove("active");
-                progress[currentStep].classList.remove("active");
-                currentStep++;
-                steps[currentStep].classList.add("active");
-                progress[currentStep].classList.add("active");
-                updateButtons();
-            }
+        // Dividir las columnas de la primera fila para crear los encabezados
+        const headers = rows[0].split(delimiter);
+        headers.forEach(header => {
+            tableHtml += `<th>${header}</th>`;
         });
 
-        document.getElementById("prevBtn").addEventListener("click", () => {
-            if (currentStep > 0) {
-                steps[currentStep].classList.remove("active");
-                progress[currentStep].classList.remove("active");
-                currentStep--;
-                steps[currentStep].classList.add("active");
-                progress[currentStep].classList.add("active");
-                updateButtons();
-            }
+        tableHtml += `</tr></thead><tbody>`;
+        rows.slice(1).forEach(row => {
+            const columns = row.split(delimiter);
+            tableHtml += `<tr>`;
+            columns.forEach(column => {
+                tableHtml += `<td>${column}</td>`;
+            });
+            tableHtml += `</tr>`;
         });
 
-        function updateButtons() {
-            document.getElementById("prevBtn").disabled = currentStep === 0;
-            document.getElementById("nextBtn").disabled = currentStep === steps.length - 1;
-        }
-
-        // File reading and preview logic
-        document.getElementById("soaFile").addEventListener("change", handleFile);
-        document.getElementById("netsuiteFile").addEventListener("change", handleFile);
-
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const text = e.target.result;
-                    displayPreview(text, event.target.id);
-                };
-                reader.readAsText(file);
-            }
-        }
-
-        function displayPreview(content, fileType) {
-            const previewDiv = document.getElementById("preview");
-            const rows = content.split("\\n").slice(0, 5); // Preview first 5 rows
-            let tableHtml = `<h3>Preview (${fileType})</h3><table><thead><tr>`;
-
-            // Assuming CSV format, split the first row for headers
-            const headers = rows[0].split(",");
-            headers.forEach(header => {
-                tableHtml += `<th>${header}</th>`;
-            });
-
-            tableHtml += `</tr></thead><tbody>`;
-            rows.slice(1).forEach(row => {
-                const columns = row.split(",");
-                tableHtml += `<tr>`;
-                columns.forEach(column => {
-                    tableHtml += `<td>${column}</td>`;
-                });
-                tableHtml += `</tr>`;
-            });
-
-            tableHtml += `</tbody></table>`;
-            previewDiv.innerHTML = tableHtml;
-        }
-    </script>
-</body>
-</html>
+        tableHtml += `</tbody></table>`;
+        previewDiv.innerHTML = tableHtml;
+    }
+</script>
