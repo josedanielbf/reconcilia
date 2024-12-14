@@ -18,7 +18,7 @@
         p {
             text-align: center;
         }
-        #preview, #mapping {
+        #preview {
             margin-top: 20px;
             text-align: center;
         }
@@ -40,27 +40,6 @@
         td {
             background-color: #f9f9f9;
         }
-        td.problem {
-            color: red;
-            background-color: #ffe6e6;
-        }
-        select {
-            margin: 5px;
-            padding: 8px;
-            font-size: 14px;
-        }
-        button {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
     </style>
 </head>
 <body>
@@ -72,23 +51,11 @@
     </div>
 
     <div id="preview"></div>
-    <div id="mapping" style="display: none;">
-        <h3>Mapea las columnas clave:</h3>
-        <p>Selecciona qué columna corresponde a cada campo:</p>
-        <div id="mapping-fields"></div>
-        <button id="confirmMapping">Confirmar Mapeo</button>
-    </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             const fileInput = document.getElementById("soaFile");
             const previewDiv = document.getElementById("preview");
-            const mappingDiv = document.getElementById("mapping");
-            const mappingFieldsDiv = document.getElementById("mapping-fields");
-            const confirmMappingButton = document.getElementById("confirmMapping");
-
-            let headers = []; // Encabezados del archivo
-            let rows = []; // Datos del archivo
 
             fileInput.addEventListener("change", handleFile);
 
@@ -102,60 +69,41 @@
                 const reader = new FileReader();
                 reader.onload = function (e) {
                     const content = e.target.result;
-                    const delimiter = detectDelimiter(content);
-
-                    rows = content.split("\n").map(row => row.split(delimiter).map(cleanData));
-                    headers = rows[0]; // Encabezados en la primera fila
-
-                    // Limpieza avanzada para columnas específicas
-                    rows = rows.map((row, index) => {
-                        if (index === 0) return row; // Encabezados
-                        return row.map((value, colIndex) => {
-                            const columnName = headers[colIndex];
-                            return cleanColumn(value, columnName);
-                        });
-                    });
+                    const rows = parseCSV(content);
 
                     displayPreview(rows);
-                    showMappingOptions(headers);
                 };
                 reader.readAsText(file);
             }
 
-            function detectDelimiter(content) {
-                const delimiters = [',', '\t', ';'];
-                const counts = delimiters.map(delim => content.split(delim).length);
-                return delimiters[counts.indexOf(Math.max(...counts))];
-            }
+            function parseCSV(content) {
+                const rows = [];
+                const lines = content.split("\n");
 
-            function cleanData(value) {
-                return value.replace(/^["']|["']$/g, "").trim(); // Limpia comillas y espacios
-            }
+                lines.forEach(line => {
+                    // Procesa cada línea respetando las comillas dobles
+                    const cells = [];
+                    let currentCell = '';
+                    let insideQuotes = false;
 
-            function cleanColumn(value, columnName) {
-                if (!value) return "";
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
 
-                if (columnName === "Memo") {
-                    // Divide valores múltiples y retorna como una lista separada
-                    return value.includes(",") ? value.split(",").join("<br>") : value;
-                }
-
-                if (columnName === "Amount (Foreign Currency)") {
-                    // Limpia valores numéricos y convierte a formato estándar
-                    return value.replace(/[^\d.-]/g, ""); // Remueve caracteres no numéricos
-                }
-
-                if (columnName === "Date" || columnName === "Due Date/Receive By") {
-                    // Verifica formato de fecha
-                    const parts = value.split("/");
-                    if (parts.length === 3) {
-                        const [month, day, year] = parts;
-                        return new Date(`${year}-${month}-${day}`).toLocaleDateString("en-US");
+                        if (char === '"' && (i === 0 || line[i - 1] !== '\\')) {
+                            insideQuotes = !insideQuotes;
+                        } else if (char === ',' && !insideQuotes) {
+                            cells.push(currentCell.trim());
+                            currentCell = '';
+                        } else {
+                            currentCell += char;
+                        }
                     }
-                    return value; // Si no se puede convertir, deja el valor como está
-                }
 
-                return value; // Retorna el valor limpio
+                    cells.push(currentCell.trim()); // Agrega la última celda
+                    rows.push(cells);
+                });
+
+                return rows;
             }
 
             function displayPreview(rows) {
@@ -164,13 +112,16 @@
                     return;
                 }
 
+                const headers = rows[0];
+                const dataRows = rows.slice(1);
+
                 let tableHtml = "<table><thead><tr>";
                 headers.forEach(header => {
                     tableHtml += `<th>${header}</th>`;
                 });
                 tableHtml += "</tr></thead><tbody>";
 
-                rows.slice(1).forEach(row => {
+                dataRows.forEach(row => {
                     tableHtml += "<tr>";
                     row.forEach(cell => {
                         tableHtml += `<td>${cell}</td>`;
@@ -181,49 +132,6 @@
                 tableHtml += "</tbody></table>";
                 previewDiv.innerHTML = tableHtml;
             }
-
-            function showMappingOptions(headers) {
-                mappingFieldsDiv.innerHTML = ""; // Limpia las opciones
-
-                const fields = [
-                    { id: "invoiceNumber", name: "Invoice Number" },
-                    { id: "amount", name: "Amount" },
-                    { id: "dueDate", name: "Due Date" },
-                    { id: "status", name: "Status" }
-                ];
-
-                fields.forEach(field => {
-                    const label = document.createElement("label");
-                    label.style.display = "block";
-
-                    const select = document.createElement("select");
-                    select.id = field.id;
-                    headers.forEach(header => {
-                        const option = document.createElement("option");
-                        option.value = header;
-                        option.textContent = header;
-                        select.appendChild(option);
-                    });
-
-                    label.textContent = `${field.name}: `;
-                    label.appendChild(select);
-                    mappingFieldsDiv.appendChild(label);
-                });
-
-                mappingDiv.style.display = "block";
-            }
-
-            confirmMappingButton.addEventListener("click", () => {
-                const mappings = {
-                    invoiceNumber: document.getElementById("invoiceNumber").value,
-                    amount: document.getElementById("amount").value,
-                    dueDate: document.getElementById("dueDate").value,
-                    status: document.getElementById("status").value
-                };
-
-                console.log("Mapeo confirmado:", mappings);
-                alert("Mapeo de columnas confirmado. Puedes continuar.");
-            });
         });
     </script>
 </body>
